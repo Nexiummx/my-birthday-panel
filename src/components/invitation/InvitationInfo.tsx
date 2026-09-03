@@ -145,8 +145,10 @@ function DetailRow({
         <span className="text-sage-400">{icon}</span>
         {term}
       </dt>
-      <dd className="font-serif text-lg leading-snug text-ink-900">{children}</dd>
-      {hint && <ClickHint />}
+      <dd className="relative font-serif text-lg leading-snug text-ink-900">
+        {children}
+        {hint && <ClickHint />}
+      </dd>
     </div>
   );
 }
@@ -161,19 +163,19 @@ function ClickHint() {
   return (
     <span
       aria-hidden="true"
-      className="pointer-events-none flex select-none items-center justify-center gap-1 text-ink-500/70"
+      className="pointer-events-none absolute left-full top-1/2 -ml-1 flex -translate-y-1/2 select-none items-center gap-0.5 whitespace-nowrap text-ink-500/70"
     >
-      <svg viewBox="0 0 84 40" className="h-8 w-[4.5rem] shrink-0" role="presentation">
+      <svg viewBox="0 0 46 40" className="h-6 w-10 shrink-0" role="presentation">
         <path
-          d="M80 33 C66 36 48 32 39 25 C37.5 23.3 35.5 20.5 34 18 A11 11 0 0 1 12 18 A8 8 0 0 1 28 18 A5 5 0 0 1 18 18"
+          d="M44 28 C39 29 35 25 33 20 A11 11 0 0 1 11 18 A8 8 0 0 1 27 18"
           fill="none"
           stroke="currentColor"
-          strokeWidth="1.3"
+          strokeWidth="1.5"
           strokeLinecap="round"
-          strokeDasharray="0.7 3"
+          strokeDasharray="0.8 3.2"
         />
       </svg>
-      <span className="-rotate-3 font-hand text-base leading-none">click me</span>
+      <span className="-rotate-3 font-hand text-sm leading-none">click me</span>
     </span>
   );
 }
