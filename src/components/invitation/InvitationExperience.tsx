@@ -163,7 +163,7 @@ export function InvitationExperience({ invitation }: { invitation: PublicInvitat
             </p>
 
             <h1 className="mt-4 max-w-[16ch] font-serif text-3xl font-light leading-snug text-cream-100 drop-shadow-[0_2px_18px_rgba(0,0,0,0.55)] sm:text-4xl">
-              Algo mágico está por revelarse
+              Un espacio guardado solo para ti en este cuento
             </h1>
 
             <Button
