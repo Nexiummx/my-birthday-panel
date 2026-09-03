@@ -1,0 +1,89 @@
+// Esquema de datos — Invitaciones digitales "Bosque Encantado"
+// Docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+// La URL de conexión vive en prisma7.config.ts (Prisma 7 ya no la lee desde el
+// esquema): las migraciones usan DIRECT_URL y la app usa DATABASE_URL vía el
+// driver adapter de node-postgres.
+datasource db {
+  provider = "postgresql"
+}
+
+/// Estado de una invitación / respuesta.
+enum InvitationStatus {
+  PENDING
+  CONFIRMED
+  DECLINED
+}
+
+/// Evento al que pertenecen las invitaciones.
+model Event {
+  id              String   @id @default(cuid())
+  name            String
+  date            DateTime
+  time            String
+  location        String
+  locationUrl     String?
+  dressCode       String?
+  dressCodeUrl    String?
+  description     String?
+  invitationImage String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  invitations Invitation[]
+
+  @@map("events")
+}
+
+/// Invitación individual: una URL pública por invitado.
+model Invitation {
+  id              String           @id @default(cuid())
+  eventId         String
+  slug            String           @unique
+  guestName       String
+  guestCount      Int              @default(1)
+  status          InvitationStatus @default(PENDING)
+  personalMessage String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  /// Una invitación solo puede tener un RSVP activo.
+  rsvp  Rsvp?
+
+  @@index([eventId])
+  @@index([status])
+  @@map("invitations")
+}
+
+/// Respuesta del invitado. Relación 1:1 con la invitación.
+model Rsvp {
+  id           String           @id @default(cuid())
+  invitationId String           @unique
+  status       InvitationStatus
+  guestCount   Int              @default(0)
+  comment      String?
+  respondedAt  DateTime         @default(now())
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  invitation Invitation @relation(fields: [invitationId], references: [id], onDelete: Cascade)
+
+  @@map("rsvps")
+}
+
+/// Usuario del panel administrativo.
+model AdminUser {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("admin_users")
+}

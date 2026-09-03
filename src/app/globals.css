@@ -1,0 +1,233 @@
+@import "tailwindcss";
+
+/* ─────────────────────────────────────────────────────────────
+   Sistema visual "Bosque Encantado"
+   Verde oliva · crema · rosa suave · dorado tenue
+   ───────────────────────────────────────────────────────────── */
+@theme {
+  --color-forest-950: #0e170c;
+  --color-forest-900: #16230f;
+  --color-forest-800: #1f3117;
+  --color-forest-700: #2b4220;
+  --color-olive-700: #435231;
+  --color-olive-600: #5a6b3c;
+  --color-olive-500: #6f8049;
+  --color-sage-400: #93a375;
+  --color-sage-300: #b3c096;
+  --color-sage-200: #cdd7b7;
+
+  --color-cream-50: #fdfaf3;
+  --color-cream-100: #f8f1e2;
+  --color-cream-200: #efe4cd;
+  --color-cream-300: #e2d3b4;
+
+  --color-blush-200: #f3dcd7;
+  --color-blush-300: #e7c3bc;
+  --color-blush-400: #d5a49b;
+  --color-blush-500: #bd837a;
+
+  --color-gold-300: #e7d3a4;
+  --color-gold-400: #d5ba7f;
+  --color-gold-500: #bd9d5a;
+  --color-gold-600: #9c7f42;
+
+  --color-ink-900: #2a2c22;
+  --color-ink-700: #4a4d3e;
+  --color-ink-500: #6f7263;
+
+  --font-serif: var(--font-cormorant), ui-serif, Georgia, "Times New Roman", serif;
+  --font-sans: var(--font-jost), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-script: var(--font-pinyon), ui-serif, Georgia, serif;
+  /* "Maya" / "29" comparten la misma cursiva que "Para {invitada}": Pinyon
+     Script, a mayor tamaño, sostiene la elegancia sin introducir una segunda
+     familia tipográfica. */
+  --font-display-script: var(--font-pinyon), ui-serif, Georgia, serif;
+
+  --ease-forest: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: var(--color-cream-50);
+  color: var(--color-ink-900);
+  font-family: var(--font-sans);
+  /* La escena pública es full-bleed: nunca debe generar scroll horizontal. */
+  overflow-x: hidden;
+}
+
+::selection {
+  background-color: var(--color-sage-300);
+  color: var(--color-forest-900);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-gold-500);
+  outline-offset: 3px;
+}
+
+/* Textura de papel reutilizable (una sola capa, sin coste de repintado). */
+.paper-texture {
+  background-image:
+    radial-gradient(at 18% 12%, rgb(255 255 255 / 0.85) 0%, transparent 55%),
+    radial-gradient(at 82% 88%, rgb(239 228 205 / 0.9) 0%, transparent 60%),
+    linear-gradient(160deg, var(--color-cream-50) 0%, var(--color-cream-100) 48%, var(--color-cream-200) 100%);
+}
+
+.paper-grain::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.35;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+}
+
+/* ── Microinteracciones (CSS: baratas y sin JS) ───────────────── */
+@keyframes leaf-sway {
+  0%,
+  100% {
+    transform: rotate(-1.2deg) translateY(0);
+  }
+  50% {
+    transform: rotate(1.2deg) translateY(-6px);
+  }
+}
+
+@keyframes branch-breathe {
+  0%,
+  100% {
+    transform: rotate(-0.5deg);
+  }
+  50% {
+    transform: rotate(0.6deg);
+  }
+}
+
+@keyframes flutter {
+  0%,
+  100% {
+    transform: translate(0, 0) rotate(-4deg);
+  }
+  33% {
+    transform: translate(10px, -14px) rotate(5deg);
+  }
+  66% {
+    transform: translate(-6px, -6px) rotate(-2deg);
+  }
+}
+
+@keyframes glow-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.animate-leaf-sway {
+  animation: leaf-sway 7s ease-in-out infinite;
+  transform-origin: top center;
+}
+
+.animate-branch-breathe {
+  animation: branch-breathe 11s ease-in-out infinite;
+}
+
+.animate-flutter {
+  animation: flutter 9s ease-in-out infinite;
+}
+
+.animate-glow-pulse {
+  animation: glow-pulse 3.6s ease-in-out infinite;
+}
+
+.animate-rise-in {
+  animation: rise-in 0.7s var(--ease-forest) both;
+}
+
+/* Trayectorias largas y desfasadas: las mariposas visitan la tarjeta sin que
+   todas entren a cuadro a la vez. */
+@keyframes butterfly-cross-one {
+  0%, 8% { opacity: 0; transform: translate3d(-14vw, 74vh, 0) rotate(-12deg); }
+  12% { opacity: 0.95; }
+  39% { opacity: 0.9; transform: translate3d(106vw, 22vh, 0) rotate(16deg); }
+  43%, 100% { opacity: 0; transform: translate3d(112vw, 18vh, 0) rotate(20deg); }
+}
+
+@keyframes butterfly-cross-two {
+  0%, 30% { opacity: 0; transform: translate3d(112vw, 30vh, 0) scaleX(-1) rotate(-8deg); }
+  34% { opacity: 0.9; }
+  60% { opacity: 0.86; transform: translate3d(-12vw, 67vh, 0) scaleX(-1) rotate(12deg); }
+  64%, 100% { opacity: 0; transform: translate3d(-18vw, 72vh, 0) scaleX(-1) rotate(18deg); }
+}
+
+@keyframes butterfly-cross-three {
+  0%, 61% { opacity: 0; transform: translate3d(-15vw, 34vh, 0) rotate(4deg) scale(0.8); }
+  65% { opacity: 0.82; }
+  90% { opacity: 0.78; transform: translate3d(108vw, 62vh, 0) rotate(-14deg) scale(0.8); }
+  94%, 100% { opacity: 0; transform: translate3d(113vw, 68vh, 0) rotate(-18deg) scale(0.8); }
+}
+
+.butterfly-flight {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: clamp(76px, 10vw, 122px);
+  filter: drop-shadow(0 3px 5px rgb(42 44 34 / 0.24));
+  will-change: transform, opacity;
+}
+
+.butterfly-flight-one { animation: butterfly-cross-one 23s linear infinite; }
+.butterfly-flight-two { animation: butterfly-cross-two 29s linear infinite; }
+.butterfly-flight-three { animation: butterfly-cross-three 37s linear infinite; }
+
+@keyframes butterfly-wing-flap-left {
+  0%, 100% { transform: rotateY(0deg) rotate(0deg); }
+  50% { transform: rotateY(48deg) rotate(-5deg); }
+}
+
+@keyframes butterfly-wing-flap-right {
+  0%, 100% { transform: rotateY(0deg) rotate(0deg); }
+  50% { transform: rotateY(-48deg) rotate(5deg); }
+}
+
+.butterfly-wing-left,
+.butterfly-wing-right {
+  transform-box: fill-box;
+  transform-origin: center right;
+  animation: butterfly-wing-flap-left 0.22s ease-in-out infinite;
+}
+
+.butterfly-wing-right {
+  transform-origin: center left;
+  animation-name: butterfly-wing-flap-right;
+}
+
+/* Accesibilidad: sin movimiento complejo si el sistema lo pide. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
