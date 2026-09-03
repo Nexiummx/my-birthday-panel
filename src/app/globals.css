@@ -42,6 +42,7 @@
      Script, a mayor tamaño, sostiene la elegancia sin introducir una segunda
      familia tipográfica. */
   --font-display-script: var(--font-pinyon), ui-serif, Georgia, serif;
+  --font-hand: var(--font-caveat), "Bradley Hand", cursive;
 
   --ease-forest: cubic-bezier(0.22, 1, 0.36, 1);
 }

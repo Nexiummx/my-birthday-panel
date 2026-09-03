@@ -1,4 +1,5 @@
 import { ImageResponse } from "next/og";
+import sharp from "sharp";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { getPublicInvitation } from "@/lib/services/invitations";
@@ -6,7 +7,9 @@ import { toPublicInvitation } from "@/lib/public-invitation";
 
 export const alt = "Invitación · Bosque Encantado";
 export const size = { width: 1200, height: 630 };
-export const contentType = "image/png";
+// El fondo es una acuarela: en PNG pesa más de 1 MB y WhatsApp descarta las
+// miniaturas pesadas. En JPEG baja a unos 200 kB sin diferencia visible.
+export const contentType = "image/jpeg";
 
 // El nombre del invitado se puede editar desde el panel: la miniatura nunca
 // debe servirse cacheada con un nombre viejo.
@@ -69,7 +72,7 @@ export default async function Image({ params }: { params: Promise<{ slug: string
   const titleSize = title.length > 12 ? 76 : 108;
   const place = event?.location.split("\n")[0];
 
-  return new ImageResponse(
+  const png = new ImageResponse(
     (
       <div
         style={{
@@ -84,7 +87,13 @@ export default async function Image({ params }: { params: Promise<{ slug: string
           textAlign: "center",
         }}
       >
-        <img src={frameSrc} width={1200} height={630} style={{ position: "absolute", top: 0, left: 0 }} />
+        <img
+          src={frameSrc}
+          alt=""
+          width={1200}
+          height={630}
+          style={{ position: "absolute", top: 0, left: 0 }}
+        />
 
         <div
           style={{
@@ -164,7 +173,7 @@ export default async function Image({ params }: { params: Promise<{ slug: string
 
           {event && (
             <div style={{ fontSize: 32, color: COLOR.ink }}>
-              {event.dateLabel} · {event.time}
+              {`${event.dateLabel} · ${event.time}`}
             </div>
           )}
           {place && (
@@ -175,4 +184,12 @@ export default async function Image({ params }: { params: Promise<{ slug: string
     ),
     { ...size, fonts }
   );
+
+  const jpeg = await sharp(Buffer.from(await png.arrayBuffer()))
+    .jpeg({ quality: 88, mozjpeg: true })
+    .toBuffer();
+
+  return new Response(new Uint8Array(jpeg), {
+    headers: { "content-type": contentType },
+  });
 }

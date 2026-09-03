@@ -99,9 +99,14 @@ npm run db:generate   # regenera el cliente Prisma
 npm run db:migrate    # crea y aplica una migración en desarrollo
 npm run db:deploy     # aplica migraciones existentes (producción)
 npm run db:seed       # datos de ejemplo + usuario administrador
+npm run db:seed:prod  # solo evento + administrador, sin invitados de ejemplo
 npm run db:studio     # explorador visual de la base de datos
 npm run setup         # generate + deploy + seed, todo junto
 ```
+
+> **En producción usa `npm run db:seed:prod`.** El seed normal incluye cuatro
+> invitados de ejemplo (Mariana López, Carlos Hernández…) que no deben acabar en
+> la lista real de invitados.
 
 El seed ([`prisma/seed.ts`](prisma/seed.ts)) es **idempotente**: puedes
 ejecutarlo las veces que quieras. Crea:
@@ -188,6 +193,31 @@ Campos y cómo se representan en la invitación:
 
 ---
 
+## Vista previa al compartir (WhatsApp, Telegram…)
+
+Cada invitación genera su propia miniatura en
+[`src/app/i/[slug]/opengraph-image.tsx`](src/app/i/[slug]/opengraph-image.tsx):
+el marco botánico de la invitación con el nombre del invitado, el evento, la
+fecha y el lugar. Es lo que ve la persona **antes** de abrir el enlace.
+
+- Se dibuja con `ImageResponse` (`next/og`) y se convierte a JPEG con `sharp`:
+  en PNG pesaba 1.2 MB y los clientes de mensajería descartan las miniaturas
+  pesadas; en JPEG ronda los 120 kB.
+- Los recursos viven en `assets/` (el marco ya recortado a 1200×630 y las tres
+  tipografías en `.ttf`, porque `next/font` sirve `woff2`, que `next/og` no
+  admite). `next.config.ts` los incluye explícitamente en el bundle serverless.
+- `metadataBase` sale de `NEXT_PUBLIC_APP_URL`; en los *preview deployments* de
+  Vercel se usa `VERCEL_URL`. **Si `NEXT_PUBLIC_APP_URL` está mal, la miniatura
+  apunta a un dominio que no existe y no se ve.**
+
+Para regenerar el fondo si cambia la ilustración:
+
+```bash
+node -e "require('sharp')('public/images/fairy-garden-invitation-frame.png').resize(1200,630,{fit:'cover'}).jpeg({quality:82,mozjpeg:true}).toFile('assets/og-frame.jpg')"
+```
+
+---
+
 ## Despliegue
 
 Pensado para **Vercel**:
@@ -195,10 +225,12 @@ Pensado para **Vercel**:
 1. Sube el repositorio a GitHub e impórtalo en Vercel.
 2. Define las variables de entorno del apartado anterior
    (`NEXT_PUBLIC_APP_URL` con el dominio real, sin barra final).
-3. El `build` ya ejecuta `prisma generate`. Aplica las migraciones con
-   `npx prisma migrate deploy` (como paso de build o desde tu máquina apuntando
-   a la base de datos de producción).
-4. Ejecuta el seed **una sola vez** para crear el usuario administrador.
+3. El `build` ejecuta `prisma generate && prisma migrate deploy`, así que cada
+   despliegue aplica las migraciones pendientes por su cuenta. Si la base no es
+   alcanzable durante el build, el despliegue falla en vez de publicar una app
+   rota.
+4. Ejecuta `npm run db:seed:prod` **una sola vez**, apuntando a la base de
+   producción, para crear el evento y el usuario administrador.
 
 Funciona igual en cualquier proveedor con Node 20+ (`npm run build && npm run start`).
 
@@ -207,12 +239,13 @@ Funciona igual en cualquier proveedor con Node 20+ (`npm run build && npm run st
 ## Estructura
 
 ```
+assets/                    Marco y tipografías de la miniatura social
 prisma/
   schema.prisma            Event · Invitation · Rsvp · AdminUser
-  seed.ts                  Datos de ejemplo, idempotente
+  seed.ts                  Datos de ejemplo, idempotente (`--prod` los omite)
 src/
   app/
-    i/[slug]/              Invitación pública
+    i/[slug]/              Invitación pública + opengraph-image
     admin/login/           Acceso
     admin/(panel)/         Resumen · invitaciones · confirmaciones
     api/                   Route Handlers

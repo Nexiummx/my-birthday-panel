@@ -27,7 +27,7 @@ export function InvitationInfo({
 
       <Ornament />
 
-      <h1 className="font-display-script text-[clamp(3.6rem,15.5vw,5.4rem)] leading-[0.85] text-forest-200">
+      <h1 className="font-display-script text-[clamp(3.6rem,15.5vw,5.4rem)] leading-[0.85] text-forest-950">
         {event.title}
       </h1>
 
@@ -54,12 +54,20 @@ export function InvitationInfo({
           {event.time}
         </DetailRow>
 
-        <DetailRow icon={<MapPin className="size-4" aria-hidden="true" />} term="Lugar">
+        <DetailRow
+          icon={<MapPin className="size-4" aria-hidden="true" />}
+          term="Lugar"
+          hint={Boolean(event.locationUrl)}
+        >
           <LocationValue event={event} />
         </DetailRow>
 
         {event.dressCode && (
-          <DetailRow icon={<Shirt className="size-4" aria-hidden="true" />} term="Dress code">
+          <DetailRow
+            icon={<Shirt className="size-4" aria-hidden="true" />}
+            term="Dress code"
+            hint={Boolean(event.dressCodeUrl)}
+          >
             {event.dressCodeUrl ? (
               <a
                 href={event.dressCodeUrl}
@@ -124,10 +132,12 @@ function DetailRow({
   icon,
   term,
   children,
+  hint = false,
 }: {
   icon: React.ReactNode;
   term: string;
   children: React.ReactNode;
+  hint?: boolean;
 }) {
   return (
     <div className="flex flex-col items-center gap-1">
@@ -136,7 +146,35 @@ function DetailRow({
         {term}
       </dt>
       <dd className="font-serif text-lg leading-snug text-ink-900">{children}</dd>
+      {hint && <ClickHint />}
     </div>
+  );
+}
+
+/**
+ * Anotación a lápiz que delata que el dato de arriba es un enlace: sin ella,
+ * el subrayado dorado pasa por decoración y nadie toca el mapa ni el dress code.
+ * Es decorativa —el enlace ya se anuncia solo— así que se oculta a lectores de
+ * pantalla y no intercepta el toque.
+ */
+function ClickHint() {
+  return (
+    <span
+      aria-hidden="true"
+      className="pointer-events-none flex select-none items-center justify-center gap-1 text-ink-500/70"
+    >
+      <svg viewBox="0 0 84 40" className="h-8 w-[4.5rem] shrink-0" role="presentation">
+        <path
+          d="M80 33 C66 36 48 32 39 25 C37.5 23.3 35.5 20.5 34 18 A11 11 0 0 1 12 18 A8 8 0 0 1 28 18 A5 5 0 0 1 18 18"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.3"
+          strokeLinecap="round"
+          strokeDasharray="0.7 3"
+        />
+      </svg>
+      <span className="-rotate-3 font-hand text-base leading-none">click me</span>
+    </span>
   );
 }
 

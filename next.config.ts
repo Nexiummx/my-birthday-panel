@@ -6,6 +6,9 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     "/i/[slug]": ["./assets/**/*"],
   },
+  // sharp trae binarios nativos: debe cargarse en tiempo de ejecución, no
+  // pasar por el bundler.
+  serverExternalPackages: ["sharp"],
 };
 
 export default nextConfig;
