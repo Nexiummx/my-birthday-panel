@@ -1,9 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { MessageSquareDashed } from "lucide-react";
+import { Maximize2, MessageSquareDashed } from "lucide-react";
 import { StatusBadge, STATUS_LABELS } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/States";
+import { Modal } from "@/components/ui/Modal";
 import type { AdminInvitation } from "@/lib/admin-invitation";
 import type { InvitationStatusValue } from "@/lib/validations";
 import { cn } from "@/lib/utils";
@@ -17,8 +18,20 @@ const FILTERS: Array<{ value: Filter; label: string }> = [
   { value: "DECLINED", label: STATUS_LABELS.DECLINED },
 ];
 
+/** Resumen que acompaña al mensaje dentro del modal de detalle. */
+function detailSummary(row: AdminInvitation) {
+  const passes =
+    row.rsvpGuestCount === null
+      ? `${row.guestCount} pases asignados`
+      : `${row.rsvpGuestCount} de ${row.guestCount} pases`;
+
+  return [STATUS_LABELS[row.status], passes, row.respondedAtLabel].join(" · ");
+}
+
 export function RSVPTable({ invitations }: { invitations: AdminInvitation[] }) {
   const [filter, setFilter] = useState<Filter>("ALL");
+  // Fila cuyo comentario se está leyendo completo; null = modal cerrado.
+  const [detail, setDetail] = useState<AdminInvitation | null>(null);
 
   const counts = useMemo(
     () => ({
@@ -104,7 +117,20 @@ export function RSVPTable({ invitations }: { invitations: AdminInvitation[] }) {
                   </td>
                   <td className="max-w-xs px-4 py-3 font-sans text-sm text-ink-700">
                     {row.comment ? (
-                      <span className="line-clamp-2 italic">“{row.comment}”</span>
+                      // El mensaje llega hasta 400 caracteres: aquí solo cabe un
+                      // adelanto, y el texto completo se lee en el modal.
+                      <button
+                        type="button"
+                        onClick={() => setDetail(row)}
+                        aria-label={`Leer el mensaje completo de ${row.guestName}`}
+                        className="group flex w-full items-start gap-2 rounded-lg px-1.5 py-1 text-left transition-colors hover:bg-cream-200/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-olive-600"
+                      >
+                        <span className="line-clamp-2 italic">“{row.comment}”</span>
+                        <Maximize2
+                          className="mt-0.5 size-3.5 shrink-0 text-ink-500/60 transition-colors group-hover:text-olive-700"
+                          aria-hidden="true"
+                        />
+                      </button>
                     ) : (
                       <span className="text-ink-500">—</span>
                     )}
@@ -115,6 +141,17 @@ export function RSVPTable({ invitations }: { invitations: AdminInvitation[] }) {
           </table>
         </div>
       )}
+
+      <Modal
+        open={detail !== null}
+        onClose={() => setDetail(null)}
+        title={detail ? `Mensaje de ${detail.guestName}` : ""}
+        description={detail ? detailSummary(detail) : undefined}
+      >
+        <p className="whitespace-pre-line font-serif text-lg font-light leading-relaxed text-ink-900">
+          “{detail?.comment}”
+        </p>
+      </Modal>
     </div>
   );
 }
