@@ -9,10 +9,11 @@ temas** —Bosque Encantado, Vaqueros, Barbie y Noche de Brillos—, que cambian
 paleta, las tipografías, la escena de fondo y los textos de bienvenida.
 
 - **Invitación pública:** `/i/[slug]` — p. ej. `/i/mariana-lopez`
-- **Panel:** `/admin/login`, `/admin`, `/admin/invitaciones`, `/admin/confirmaciones`, `/admin/evento`, `/admin/cuenta`
+- **Panel del cliente:** `/admin/login`, `/admin`, `/admin/invitaciones`, `/admin/confirmaciones`, `/admin/evento`, `/admin/cuenta`
+- **Solo equipo:** `/admin/clientes` — alta de cuentas y cupos
 
 No hay registro público: las cuentas y su cupo de eventos los da de alta el
-equipo con [`scripts/accounts.ts`](scripts/accounts.ts).
+equipo desde `/admin/clientes`.
 
 ---
 
@@ -199,8 +200,28 @@ Cada fila de la tabla permite **ver**, **editar**, **copiar el enlace** y
 
 ## Cuentas y cupo de eventos
 
-No hay registro público. Las cuentas las crea el equipo, y el **cupo de eventos
-activos** es la palanca comercial: se sube cuando el cliente paga.
+No hay registro público. Las cuentas las crea el equipo desde
+**`/admin/clientes`**, y el **cupo de eventos activos** es la palanca comercial:
+se sube cuando el cliente paga.
+
+Esa sección solo la ven las cuentas con `isSuperAdmin`. El enlace se oculta a
+los demás, pero eso es cosmético: **la página y las cuatro rutas de API
+comprueban el permiso por su cuenta**, y responden `404` —no `403`— para no
+confirmarle a un cliente que la sección existe.
+
+Nadie puede quitarse a sí mismo el superadmin ni borrar su propia cuenta.
+
+### Arranque en frío
+
+La marca de superadmin no se puede dar desde el panel si todavía no hay ninguna,
+así que la primera se activa por línea de comandos:
+
+```bash
+npm run accounts super --email tu@nexiummx.com --on
+```
+
+El resto del script sigue disponible como respaldo, y es la única vía para
+restablecer la contraseña de un cliente que la haya perdido:
 
 ```bash
 npm run accounts list
@@ -361,7 +382,8 @@ src/
   app/
     i/[slug]/              Invitación pública + opengraph-image + fonts
     admin/login/           Acceso
-    admin/(panel)/         Resumen · invitaciones · confirmaciones · evento
+    admin/(panel)/         Resumen · invitaciones · confirmaciones · evento ·
+                           cuenta · clientes (superadmin)
     api/                   Route Handlers
   components/
     invitation/            InvitationCard · InvitationInfo · RSVPModal ·
@@ -369,11 +391,12 @@ src/
     invitation/scenes/     SceneShell + una escena por tema + Scene (resolver)
     admin/                 AdminSidebar · StatsCard · InvitationTable ·
                            RSVPTable · EventManager · EventFormModal ·
-                           ThemePicker · AccountForms
+                           ThemePicker · AccountForms · AccountManager ·
+                           AccountFormModal
     ui/                    Button · Field · Modal · Badge · States
   lib/
-    services/              Lógica de negocio (account · events · invitations ·
-                           rsvp · stats)
+    services/              Lógica de negocio (account · accounts · events ·
+                           invitations · rsvp · stats)
     themes.ts              Catálogo de temas (colores, copy, muestras)
     panel.ts               Contexto del panel: sesión + evento activo
     validations.ts         Esquemas Zod compartidos
@@ -399,6 +422,10 @@ Todas las respuestas siguen el mismo formato: `{ data }` en éxito y
 | `GET` | `/api/account` | Admin | Datos de la cuenta en sesión. |
 | `PATCH` | `/api/account` | Admin | Cambia nombre y correo. Exige la contraseña. |
 | `POST` | `/api/account/password` | Admin | Cambia la contraseña. Exige la actual. |
+| `GET` | `/api/admin/accounts` | Superadmin | Lista las cuentas y su cupo. |
+| `POST` | `/api/admin/accounts` | Superadmin | Da de alta un cliente. |
+| `PATCH` | `/api/admin/accounts/[id]` | Superadmin | Cambia correo, nombre, cupo o contraseña. |
+| `DELETE` | `/api/admin/accounts/[id]` | Superadmin | Elimina la cuenta con todo lo suyo. |
 | `GET` | `/api/events` | Admin | Lista los eventos de la cuenta y su cupo. |
 | `POST` | `/api/events` | Admin | Crea un evento. **402** si excede el cupo. |
 | `GET` | `/api/events/[id]` | Admin | Detalle de un evento de la cuenta. |

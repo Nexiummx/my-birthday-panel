@@ -188,3 +188,73 @@ export const changePasswordSchema = z
     path: ["newPassword"],
   });
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
+
+/** Alta de cuenta desde el panel de superadmin. */
+export const createAccountSchema = z.object({
+  email: z.email("Correo electrónico inválido").trim().toLowerCase(),
+  name: optionalText(80, "El nombre es demasiado largo"),
+  password: z
+    .string()
+    .min(8, "La contraseña debe tener al menos 8 caracteres")
+    .max(200, "La contraseña es demasiado larga"),
+  eventQuota: z.coerce
+    .number<number>()
+    .int("Debe ser un número entero")
+    .min(0, "El cupo no puede ser negativo")
+    .max(50, "Cupo fuera de rango"),
+  isSuperAdmin: z.boolean().optional(),
+});
+export type CreateAccountInput = z.infer<typeof createAccountSchema>;
+
+/** Edición de cuenta por el superadmin. Todo opcional, pero al menos un campo. */
+export const updateAccountSchema = createAccountSchema
+  .partial()
+  .refine((value) => Object.keys(value).length > 0, {
+    message: "No hay cambios que guardar",
+  });
+export type UpdateAccountInput = z.infer<typeof updateAccountSchema>;
+
+/**
+ * Formulario de cuenta del panel de superadmin.
+ *
+ * La contraseña vive como opcional en el tipo —es obligatoria al crear pero no
+ * al editar— y la diferencia se resuelve en un refine, no con dos esquemas
+ * distintos: dos esquemas producirían dos tipos y el formulario no podría
+ * tiparse de una sola forma.
+ */
+const accountFormFields = z.object({
+  email: z.email("Correo electrónico inválido").trim().toLowerCase(),
+  name: optionalText(80, "El nombre es demasiado largo"),
+  password: z.string().max(200, "La contraseña es demasiado larga").optional(),
+  eventQuota: z.coerce
+    .number<number>()
+    .int("Debe ser un número entero")
+    .min(0, "El cupo no puede ser negativo")
+    .max(50, "Cupo fuera de rango"),
+  isSuperAdmin: z.boolean().optional(),
+});
+export type AccountFormInput = z.infer<typeof accountFormFields>;
+
+export function accountFormSchema(isEdit: boolean) {
+  return accountFormFields.superRefine((value, ctx) => {
+    const password = value.password?.trim() ?? "";
+
+    if (!isEdit && password.length < 8) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["password"],
+        message: "La contraseña debe tener al menos 8 caracteres",
+      });
+      return;
+    }
+
+    // Al editar, vacío significa "no la cambies"; con algo escrito, se exige.
+    if (isEdit && password.length > 0 && password.length < 8) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["password"],
+        message: "La nueva contraseña debe tener al menos 8 caracteres",
+      });
+    }
+  });
+}

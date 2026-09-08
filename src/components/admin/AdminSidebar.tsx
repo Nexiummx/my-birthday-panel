@@ -12,6 +12,7 @@ import {
   Mail,
   Menu,
   UserCog,
+  Users,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -24,7 +25,20 @@ const LINKS = [
   { href: "/admin/cuenta", label: "Mi cuenta", icon: UserCog },
 ] as const;
 
-export function AdminSidebar({ email, eventName }: { email: string; eventName: string | null }) {
+/** Solo para el equipo: alta de clientes y cupos. */
+const SUPER_LINKS = [
+  { href: "/admin/clientes", label: "Clientes", icon: Users },
+] as const;
+
+export function AdminSidebar({
+  email,
+  eventName,
+  superAdmin,
+}: {
+  email: string;
+  eventName: string | null;
+  superAdmin: boolean;
+}) {
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -75,7 +89,7 @@ export function AdminSidebar({ email, eventName }: { email: string; eventName: s
           </span>
         </div>
 
-        {LINKS.map((link) => {
+        {[...LINKS, ...(superAdmin ? SUPER_LINKS : [])].map((link) => {
           const active = pathname === link.href;
           const Icon = link.icon;
           return (

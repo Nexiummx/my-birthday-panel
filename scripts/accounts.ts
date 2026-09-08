@@ -9,6 +9,10 @@
  *   npx tsx scripts/accounts.ts create --email ana@cliente.mx --password "…" --quota 1 --name "Ana"
  *   npx tsx scripts/accounts.ts quota  --email ana@cliente.mx --quota 3
  *   npx tsx scripts/accounts.ts password --email ana@cliente.mx --password "…"
+ *   npx tsx scripts/accounts.ts super    --email tu@nexiummx.com --on
+ *
+ * `super` es el arranque en frío: sin una cuenta con superadmin nadie puede
+ * entrar a /admin/clientes, y esa marca no se puede dar desde el panel.
  */
 import "./env";
 import bcrypt from "bcryptjs";
@@ -132,11 +136,25 @@ async function setPassword() {
   console.log(`✔ Contraseña actualizada para ${email}`);
 }
 
+async function setSuper() {
+  const email = requireEmail();
+  const on = process.argv.includes("--on");
+  const off = process.argv.includes("--off");
+
+  if (on === off) {
+    throw new Error("Indica --on o --off");
+  }
+
+  await prisma.adminUser.update({ where: { email }, data: { isSuperAdmin: on } });
+  console.log(`✔ ${email}: superadmin ${on ? "activado" : "desactivado"}`);
+}
+
 const COMMANDS: Record<string, () => Promise<void>> = {
   list,
   create,
   quota: setQuota,
   password: setPassword,
+  super: setSuper,
 };
 
 async function main() {
