@@ -430,3 +430,19 @@ body {
 .animate-dust {
   animation: dust-drift 14s linear infinite;
 }
+
+/* Giro lento de los haces del tema Disco. La bola no gira: giran las luces,
+   que es lo que ocurre de verdad y además evita repintar las facetas. */
+@keyframes beam-sweep {
+  from {
+    transform: rotate(-7deg);
+  }
+  to {
+    transform: rotate(7deg);
+  }
+}
+
+.animate-beams {
+  animation: beam-sweep 14s ease-in-out infinite alternate;
+  transform-origin: 50% 12%;
+}
