@@ -153,3 +153,38 @@ export const updateEventSchema = createEventSchema
     message: "No hay cambios que guardar",
   });
 export type UpdateEventInput = z.infer<typeof updateEventSchema>;
+
+/** Datos de la cuenta que el titular puede editar. */
+export const updateProfileSchema = z.object({
+  name: optionalText(80, "El nombre es demasiado largo"),
+  email: z.email("Correo electrónico inválido").trim().toLowerCase(),
+  /** Cambiar el correo cambia el acceso, así que se confirma con la contraseña. */
+  currentPassword: z.string().min(1, "Escribe tu contraseña para confirmar"),
+});
+export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
+
+/**
+ * Cambio de contraseña. Se exige la actual: sin correo configurado todavía no
+ * hay recuperación, así que esta es la única barrera contra que alguien con la
+ * sesión abierta se apropie de la cuenta.
+ */
+export const changePasswordSchema = z
+  .object({
+    currentPassword: z.string().min(1, "Escribe tu contraseña actual"),
+    // 8 y no 6 como el login: las cuentas viejas se quedan como estén, pero
+    // toda contraseña nueva sube el listón.
+    newPassword: z
+      .string()
+      .min(8, "La nueva contraseña debe tener al menos 8 caracteres")
+      .max(200, "La contraseña es demasiado larga"),
+    confirmPassword: z.string(),
+  })
+  .refine((value) => value.newPassword === value.confirmPassword, {
+    message: "Las contraseñas no coinciden",
+    path: ["confirmPassword"],
+  })
+  .refine((value) => value.newPassword !== value.currentPassword, {
+    message: "La nueva contraseña debe ser distinta de la actual",
+    path: ["newPassword"],
+  });
+export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;

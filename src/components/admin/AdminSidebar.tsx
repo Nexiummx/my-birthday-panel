@@ -3,7 +3,17 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
-import { CalendarCheck, CalendarDays, LayoutDashboard, Leaf, LogOut, Mail, Menu, X } from "lucide-react";
+import {
+  CalendarCheck,
+  CalendarDays,
+  LayoutDashboard,
+  Leaf,
+  LogOut,
+  Mail,
+  Menu,
+  UserCog,
+  X,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const LINKS = [
@@ -11,6 +21,7 @@ const LINKS = [
   { href: "/admin/invitaciones", label: "Invitaciones", icon: Mail },
   { href: "/admin/confirmaciones", label: "Confirmaciones", icon: CalendarCheck },
   { href: "/admin/evento", label: "Eventos", icon: CalendarDays },
+  { href: "/admin/cuenta", label: "Mi cuenta", icon: UserCog },
 ] as const;
 
 export function AdminSidebar({ email, eventName }: { email: string; eventName: string | null }) {
@@ -87,9 +98,14 @@ export function AdminSidebar({ email, eventName }: { email: string; eventName: s
         })}
 
         <div className="mt-auto space-y-3 pt-8">
-          <p className="truncate px-3 font-sans text-xs text-ink-500" title={email}>
+          <Link
+            href="/admin/cuenta"
+            onClick={() => setOpen(false)}
+            className="block truncate px-3 font-sans text-xs text-ink-500 transition-colors hover:text-ink-900"
+            title={email}
+          >
             {email}
-          </p>
+          </Link>
           <button
             type="button"
             onClick={signOut}

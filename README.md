@@ -9,7 +9,7 @@ temas** —Bosque Encantado, Vaqueros, Barbie y Noche de Brillos—, que cambian
 paleta, las tipografías, la escena de fondo y los textos de bienvenida.
 
 - **Invitación pública:** `/i/[slug]` — p. ej. `/i/mariana-lopez`
-- **Panel:** `/admin/login`, `/admin`, `/admin/invitaciones`, `/admin/confirmaciones`, `/admin/evento`
+- **Panel:** `/admin/login`, `/admin`, `/admin/invitaciones`, `/admin/confirmaciones`, `/admin/evento`, `/admin/cuenta`
 
 No hay registro público: las cuentas y su cupo de eventos los da de alta el
 equipo con [`scripts/accounts.ts`](scripts/accounts.ts).
@@ -216,6 +216,17 @@ evento por encima del cupo devuelve **402** con un mensaje que explica qué hace
 El cupo se comprueba en el servicio ([`lib/services/events.ts`](src/lib/services/events.ts)),
 no en la ruta, para que valga sea cual sea la vía de entrada.
 
+El cliente se administra solo desde **`/admin/cuenta`**: cambia su nombre, su
+correo de acceso y su contraseña sin intervención del equipo. Ambas operaciones
+exigen la contraseña actual, porque **todavía no hay recuperación por correo** y
+esa es la única barrera si alguien encuentra una sesión abierta.
+
+Al cambiar el correo se reemite el JWT: lleva el correo dentro y, sin reemitirlo,
+la sesión seguiría viva con el dato viejo hasta caducar.
+
+> **Pendiente:** sin correo configurado no hay "olvidé mi contraseña". Si un
+> cliente la pierde, se restablece con `npm run accounts password`.
+
 ---
 
 ## Aislamiento entre cuentas
@@ -358,10 +369,11 @@ src/
     invitation/scenes/     SceneShell + una escena por tema + Scene (resolver)
     admin/                 AdminSidebar · StatsCard · InvitationTable ·
                            RSVPTable · EventManager · EventFormModal ·
-                           ThemePicker
+                           ThemePicker · AccountForms
     ui/                    Button · Field · Modal · Badge · States
   lib/
-    services/              Lógica de negocio (events · invitations · rsvp · stats)
+    services/              Lógica de negocio (account · events · invitations ·
+                           rsvp · stats)
     themes.ts              Catálogo de temas (colores, copy, muestras)
     panel.ts               Contexto del panel: sesión + evento activo
     validations.ts         Esquemas Zod compartidos
@@ -384,6 +396,9 @@ Todas las respuestas siguen el mismo formato: `{ data }` en éxito y
 | --- | --- | --- | --- |
 | `POST` | `/api/auth/login` | Público | Inicia sesión y emite la cookie. |
 | `POST` | `/api/auth/logout` | Público | Cierra la sesión. |
+| `GET` | `/api/account` | Admin | Datos de la cuenta en sesión. |
+| `PATCH` | `/api/account` | Admin | Cambia nombre y correo. Exige la contraseña. |
+| `POST` | `/api/account/password` | Admin | Cambia la contraseña. Exige la actual. |
 | `GET` | `/api/events` | Admin | Lista los eventos de la cuenta y su cupo. |
 | `POST` | `/api/events` | Admin | Crea un evento. **402** si excede el cupo. |
 | `GET` | `/api/events/[id]` | Admin | Detalle de un evento de la cuenta. |
