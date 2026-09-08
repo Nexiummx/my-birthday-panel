@@ -1,5 +1,6 @@
 import "server-only";
 import type { EventRecord } from "@/lib/services/events";
+import { datePolicy, type DatePolicy } from "@/lib/event-date";
 import { formatLongDate } from "@/lib/utils";
 
 /** Fila de evento ya serializada para el panel. */
@@ -22,6 +23,8 @@ export interface AdminEvent {
   sealedCta: string | null;
   archived: boolean;
   invitationCount: number;
+  /** Si la fecha se puede mover, y hasta dónde. Ver lib/event-date.ts. */
+  datePolicy: DatePolicy;
 }
 
 export function toAdminEvent(event: EventRecord): AdminEvent {
@@ -43,5 +46,6 @@ export function toAdminEvent(event: EventRecord): AdminEvent {
     sealedCta: event.sealedCta,
     archived: event.archivedAt !== null,
     invitationCount: event._count.invitations,
+    datePolicy: datePolicy(event),
   };
 }

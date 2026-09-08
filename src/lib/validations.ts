@@ -372,3 +372,67 @@ export function parseGuestList(raw: string): ParsedGuest[] {
       return { guestName, guestCount };
     });
 }
+
+/**
+ * Tickets. Duplican los enums de Prisma por la misma razón que EVENT_THEMES:
+ * los componentes de cliente no pueden arrastrar el cliente generado.
+ */
+export const TICKET_CATEGORIES = ["DATE_CHANGE", "BILLING", "EVENT", "OTHER"] as const;
+export type TicketCategoryValue = (typeof TICKET_CATEGORIES)[number];
+
+export const TICKET_STATUSES = ["OPEN", "ANSWERED", "CLOSED"] as const;
+export type TicketStatusValue = (typeof TICKET_STATUSES)[number];
+
+export const TICKET_CATEGORY_LABELS: Record<TicketCategoryValue, string> = {
+  DATE_CHANGE: "Cambio de fecha",
+  BILLING: "Planes y pagos",
+  EVENT: "Mi evento",
+  OTHER: "Otro",
+};
+
+export const TICKET_STATUS_LABELS: Record<TicketStatusValue, string> = {
+  OPEN: "Abierto",
+  ANSWERED: "Respondido",
+  CLOSED: "Cerrado",
+};
+
+export const createTicketSchema = z.object({
+  subject: z
+    .string()
+    .trim()
+    .min(4, "Ponle un asunto de al menos 4 caracteres")
+    .max(140, "El asunto es demasiado largo"),
+  body: z
+    .string()
+    .trim()
+    .min(10, "Cuéntanos un poco más para poder ayudarte")
+    .max(4000, "El mensaje es demasiado largo"),
+  // Sin .default(): un valor por defecto en Zod hace que el tipo de entrada y
+  // el de salida difieran, y zodResolver deja de encajar con useForm. El
+  // formulario siempre manda uno.
+  category: z.enum(TICKET_CATEGORIES),
+  /// Evento al que se refiere. Cadena vacía = ninguno, que es lo que manda un
+  /// <select> sin elegir.
+  eventId: z.string().trim().max(40).optional(),
+});
+export type CreateTicketInput = z.infer<typeof createTicketSchema>;
+
+export const ticketMessageSchema = z.object({
+  body: z
+    .string()
+    .trim()
+    .min(1, "Escribe tu mensaje")
+    .max(4000, "El mensaje es demasiado largo"),
+});
+export type TicketMessageInput = z.infer<typeof ticketMessageSchema>;
+
+export const updateTicketSchema = z.object({
+  status: z.enum(TICKET_STATUSES),
+});
+export type UpdateTicketInput = z.infer<typeof updateTicketSchema>;
+
+/** Cambio de fecha hecho por el equipo desde un ticket. Sin ventana: ese es el punto. */
+export const resolveDateSchema = z.object({
+  date: z.coerce.date<Date>("Fecha inválida"),
+});
+export type ResolveDateInput = z.infer<typeof resolveDateSchema>;

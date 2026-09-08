@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/Button";
@@ -8,6 +9,7 @@ import { Field, Input, Textarea } from "@/components/ui/Field";
 import { Modal } from "@/components/ui/Modal";
 import { ThemePicker } from "@/components/admin/ThemePicker";
 import { getTheme } from "@/lib/themes";
+import type { DatePolicy } from "@/lib/event-date";
 import { createEventSchema, type CreateEventInput } from "@/lib/validations";
 
 /** Lo que el formulario necesita saber de un evento ya existente. */
@@ -26,6 +28,7 @@ export interface EditableEvent {
   sealedEyebrow: string | null;
   sealedHeadline: string | null;
   sealedCta: string | null;
+  datePolicy: DatePolicy;
 }
 
 export function EventFormModal(props: EventFormProps & { open: boolean }) {
@@ -78,6 +81,27 @@ function EventFormDialog({ onClose, onSaved, event }: EventFormProps) {
   // es un hueco, es "usa el del tema".
   const defaults = getTheme(theme).copy;
 
+  // La fecha es el único campo con regla propia: un evento se paga por crédito,
+  // y sin anclar la fecha bastaría con reescribir el del año pasado.
+  const dateHint = !isEdit ? (
+    "Después solo podrás moverla una vez, y como mucho un mes."
+  ) : event!.datePolicy.canChange ? (
+    `Un solo cambio, ${event!.datePolicy.description}.`
+  ) : (
+    <>
+      Ya usaste el cambio de fecha de este evento.{" "}
+      <Link
+        href={`/admin/soporte?categoria=DATE_CHANGE&evento=${event!.id}&asunto=${encodeURIComponent(
+          `Cambio de fecha de ${event!.name}`
+        )}`}
+        className="underline decoration-cream-300 underline-offset-2 hover:text-ink-900"
+      >
+        Abre un ticket
+      </Link>{" "}
+      y la movemos nosotros.
+    </>
+  );
+
   const onSubmit = handleSubmit(async (values) => {
     setServerError(null);
 
@@ -121,10 +145,22 @@ function EventFormDialog({ onClose, onSaved, event }: EventFormProps) {
         </Field>
 
         <div className="grid gap-5 sm:grid-cols-2">
-          <Field label="Fecha" htmlFor="event-date" error={errors.date?.message}>
+          <Field
+            label="Fecha"
+            htmlFor="event-date"
+            error={errors.date?.message}
+            hint={dateHint}
+          >
+            {/* El campo se bloquea cuando ya se usó el cambio, y se acota con
+                min/max cuando sigue disponible: es preferible que el calendario
+                no ofrezca lo que el servidor va a rechazar. Aun así la regla se
+                aplica en el servicio — esto es comodidad, no seguridad. */}
             <Input
               id="event-date"
               type="date"
+              disabled={isEdit && !event!.datePolicy.canChange}
+              min={isEdit ? event!.datePolicy.window.from : undefined}
+              max={isEdit ? event!.datePolicy.window.to : undefined}
               aria-invalid={Boolean(errors.date)}
               {...register("date")}
             />

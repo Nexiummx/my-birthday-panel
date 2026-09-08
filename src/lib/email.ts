@@ -80,3 +80,61 @@ export async function sendVerification(to: string, url: string) {
     url
   );
 }
+
+/** Escapa lo que escribió una persona antes de meterlo en la plantilla HTML. */
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/**
+ * Aviso de ticket. A diferencia de los correos de acceso, estos NO pueden
+ * tumbar la operación: si Resend falla, el ticket ya está guardado y se ve en
+ * el panel. Se registra y se sigue.
+ */
+async function notify(to: string, subject: string, html: string, url: string) {
+  try {
+    await send(to, subject, html, url);
+  } catch (error) {
+    console.error("[correo] aviso de ticket no enviado:", error);
+  }
+}
+
+/** Al equipo, cuando un cliente abre un ticket o responde. */
+export async function sendTicketToTeam(
+  to: string,
+  ticket: { subject: string; from: string; body: string; url: string; isNew: boolean }
+) {
+  await notify(
+    to,
+    `${ticket.isNew ? "Nuevo ticket" : "Respuesta"}: ${ticket.subject}`,
+    layout(
+      ticket.isNew ? "Nuevo ticket" : "Respuesta en un ticket",
+      `<p style='margin:0'><strong>${escapeHtml(ticket.from)}</strong> escribió sobre “${escapeHtml(ticket.subject)}”.</p>
+       <p style='margin:12px 0 0;white-space:pre-wrap'>${escapeHtml(ticket.body)}</p>`,
+      { label: "Abrir en el panel", url: ticket.url }
+    ),
+    ticket.url
+  );
+}
+
+/** Al cliente, cuando el equipo le responde. */
+export async function sendTicketReplyToClient(
+  to: string,
+  ticket: { subject: string; body: string; url: string }
+) {
+  await notify(
+    to,
+    `Respondimos: ${ticket.subject}`,
+    layout(
+      "Tienes una respuesta",
+      `<p style='margin:0'>Sobre “${escapeHtml(ticket.subject)}”:</p>
+       <p style='margin:12px 0 0;white-space:pre-wrap'>${escapeHtml(ticket.body)}</p>`,
+      { label: "Ver el ticket", url: ticket.url }
+    ),
+    ticket.url
+  );
+}

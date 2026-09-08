@@ -59,10 +59,29 @@ export default function TermsPage() {
         </p>
       </LegalSection>
 
-      <LegalSection title="Pagos">
+      <LegalSection title="Pagos y créditos de evento">
         <p>
-          El número de eventos activos depende del plan contratado. Los planes se acuerdan
-          directamente con nosotros; no hay cobro automático ni renovación sin tu confirmación.
+          Cada plan otorga un número de <strong>créditos de evento</strong>. Crear un evento
+          consume un crédito. Archivar o eliminar ese evento después <strong>no devuelve el
+          crédito</strong>: lo que se paga es la celebración, no el espacio en el panel.
+        </p>
+        <p>
+          Los planes se acuerdan directamente con nosotros; no hay cobro automático ni renovación
+          sin tu confirmación.
+        </p>
+      </LegalSection>
+
+      <LegalSection title="Cambios de fecha">
+        <p>
+          La fecha de un evento puede modificarse <strong>una vez</strong>, y siempre que la nueva
+          fecha caiga dentro del mes anterior o del mes siguiente a la original. Esa ventana cubre
+          los cambios normales de un evento ya planeado.
+        </p>
+        <p>
+          Si necesitas mover la fecha más allá de ese margen, o cambiarla por segunda vez,
+          escríbenos desde la sección de soporte del panel: lo valoramos caso por caso y lo
+          hacemos nosotros. Reprogramar a otra temporada equivale a un evento nuevo y puede
+          requerir un crédito adicional.
         </p>
       </LegalSection>
 

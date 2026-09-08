@@ -6,7 +6,9 @@ import { useState } from "react";
 import {
   CalendarCheck,
   CalendarDays,
+  Inbox,
   LayoutDashboard,
+  LifeBuoy,
   MailOpen,
   LogOut,
   Mail,
@@ -23,12 +25,14 @@ const LINKS = [
   { href: "/admin/invitaciones", label: "Invitaciones", icon: Mail },
   { href: "/admin/confirmaciones", label: "Confirmaciones", icon: CalendarCheck },
   { href: "/admin/evento", label: "Eventos", icon: CalendarDays },
+  { href: "/admin/soporte", label: "Soporte", icon: LifeBuoy },
   { href: "/admin/cuenta", label: "Mi cuenta", icon: UserCog },
 ] as const;
 
 /** Solo para el equipo: alta de clientes y cupos. */
 const SUPER_LINKS = [
   { href: "/admin/clientes", label: "Clientes", icon: Users },
+  { href: "/admin/tickets", label: "Tickets", icon: Inbox },
 ] as const;
 
 export function AdminSidebar({

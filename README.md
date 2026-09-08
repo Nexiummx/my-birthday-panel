@@ -9,11 +9,12 @@ temas** —Bosque Encantado, Vaqueros, Barbie y Noche de Brillos—, que cambian
 paleta, las tipografías, la escena de fondo y los textos de bienvenida.
 
 - **Invitación pública:** `/i/[slug]` — p. ej. `/i/mariana-lopez`
-- **Panel del cliente:** `/admin/login`, `/admin`, `/admin/invitaciones`, `/admin/confirmaciones`, `/admin/evento`, `/admin/cuenta`
-- **Solo equipo:** `/admin/clientes` — alta de cuentas y cupos
+- **Panel del cliente:** `/admin/login`, `/admin`, `/admin/invitaciones`, `/admin/confirmaciones`, `/admin/evento`, `/admin/soporte`, `/admin/cuenta`
+- **Solo equipo:** `/admin/clientes` (cuentas y créditos) y `/admin/tickets`
 
-Cualquiera puede crear su cuenta, pero nace con **cupo 0**: entra al panel y no
-puede crear eventos hasta que el equipo se lo habilite desde `/admin/clientes`.
+Cualquiera puede crear su cuenta, pero nace con **0 créditos de evento**: entra
+al panel y no puede crear eventos hasta que el equipo se los habilite desde
+`/admin/clientes`.
 
 ---
 
@@ -87,6 +88,7 @@ Variables:
 | `FACEBOOK_CLIENT_ID` / `FACEBOOK_CLIENT_SECRET` | Igual, para Facebook. Cableado pero apagado hasta que Meta apruebe la app. |
 | `NEXT_PUBLIC_CONTACT_WHATSAPP` | Número comercial, solo dígitos con lada país. Sin él los botones de contratación caen a `mailto:`. |
 | `NEXT_PUBLIC_CONTACT_EMAIL` | Correo comercial de respaldo. |
+| `SUPPORT_EMAIL` | Buzón al que llegan los avisos de tickets. Sin él se usa el de contacto. |
 
 `.env` está en `.gitignore`; `.env.example` sí se versiona.
 
@@ -131,7 +133,7 @@ npm run db:seed       # datos de ejemplo + usuario administrador
 npm run db:seed:prod  # solo evento + administrador, sin invitados de ejemplo
 npm run db:studio     # explorador visual de la base de datos
 npm run setup         # generate + deploy + seed, todo junto
-npm run accounts      # alta de cuentas y cupos (ver "Cuentas y cupo")
+npm run accounts      # alta de cuentas y créditos (ver "Créditos de evento")
 ```
 
 > **Nunca ejecutes `db:migrate` (`prisma migrate dev`) contra producción**: usa
@@ -260,11 +262,11 @@ Cambiarlos ahí los cambia a la vez en la portada (`/`) y en la pantalla de
 activación del panel (`/admin/evento` con cupo 0). No hay precios escritos en
 ningún componente.
 
-| Plan | Precio | Cupo |
+| Plan | Precio | Créditos |
 | --- | --- | --- |
-| Evento único | $1,490 MXN, pago único | 1 evento activo |
-| Dos eventos | $2,490 MXN, pago único | 2 eventos activos |
-| Organizadores | $890 MXN al mes | 5 eventos activos |
+| Evento único | $1,490 MXN, pago único | 1 evento |
+| Dos eventos | $2,490 MXN, pago único | 2 eventos |
+| Organizadores | $890 MXN al mes | 5 eventos cada mes |
 
 **Son una propuesta, no una decisión.** Ajústalos antes de publicar.
 
@@ -274,27 +276,91 @@ número para que nadie tenga que recordar qué significa un 2.
 
 ### La regla al escribir un plan
 
-En `features` solo puede ir lo que el equipo cumple o el código impone. El
-**único** límite que la aplicación aplica sola es el cupo. No agregues "hasta
-200 invitados" ni "1 GB de imágenes": no hay nada que lo haga cumplir, y el
-cliente lo descubriría el día de su fiesta.
+En `features` solo puede ir lo que el equipo cumple o el código impone. Los
+**únicos** límites que la aplicación aplica sola son los créditos de evento y la
+regla de cambio de fecha. No agregues "hasta 200 invitados" ni "1 GB de
+imágenes": no hay nada que lo haga cumplir, y el cliente lo descubriría el día
+de su fiesta.
+
+Ojo con la fecha: **no se puede prometer "cambia la fecha cuando quieras"**.
+Se cambia una vez y como mucho un mes; el resto pasa por un ticket.
 
 ### Cómo se cobra hoy
 
 No hay pasarela de pago. El flujo es: el cliente se registra → ve los precios en
 `/admin/evento` → escribe por WhatsApp (el mensaje lleva su correo ya escrito) →
-el equipo cobra por fuera y sube el cupo desde `/admin/clientes`. Para el primer
-puñado de clientes esto es más barato que integrar Stripe, y deja ver qué plan
-se vende antes de programarlo.
+el equipo cobra por fuera y le sube los créditos desde `/admin/clientes`. Para el
+primer puñado de clientes esto es más barato que integrar Stripe, y deja ver qué
+plan se vende antes de programarlo.
+
+La suscripción funciona con el mismo mecanismo: cada mes que paga, se le suman
+créditos. No hay un segundo modo de facturación en el código.
 
 ---
 
-## Cuentas y cupo de eventos
+## Créditos de evento
 
-Cualquiera crea su cuenta desde `/admin/registro`, pero nace con **cupo 0**. El
-**cupo de eventos activos** es la palanca comercial: lo sube el equipo desde
-**`/admin/clientes`** cuando el cliente paga. Es el único límite que la
-aplicación hace cumplir por sí sola.
+Cualquiera crea su cuenta desde `/admin/registro`, pero nace con **0 créditos**.
+Los créditos son la palanca comercial: los sube el equipo desde
+**`/admin/clientes`** cuando el cliente paga.
+
+**Un crédito se consume al crear un evento y no vuelve.** Ni al archivarlo ni al
+borrarlo. Eso es deliberado y es la razón de ser de `AdminUser.eventsUsed`, un
+contador que solo sube: si el consumo se midiera contando filas de `events`,
+bastaría con borrar la fiesta del año pasado para recuperar el crédito.
+
+"Devolver" un crédito es **subir `eventQuota`**, que deja rastro en el registro
+de la cuenta en vez de esconderse en un borrado.
+
+El consumo y la comprobación ocurren en la misma transacción, y en ese orden
+—primero incrementa, después comprueba—: al revés, dos peticiones simultáneas
+con un solo crédito pasarían las dos.
+
+### La fecha del evento
+
+Cerrar la fuga del crédito no basta, porque hay una segunda forma de reciclar
+que no crea nada: **editar el evento del año pasado** hasta convertirlo en el de
+este. Por eso la fecha tiene su propia regla, en
+[`src/lib/event-date.ts`](src/lib/event-date.ts):
+
+- El evento guarda la fecha con la que nació (`originalDate`) y no se toca nunca.
+- La fecha se puede mover **una sola vez** (`dateChangedAt`).
+- La fecha nueva tiene que caer en el **mes anterior o el siguiente** al original.
+
+Eso cubre lo que de verdad pasa —el salón cambió el fin de semana— y deja fuera
+el salto de temporada. Todo se calcula en UTC: con la zona local, un evento del
+día 1 o del 31 cambiaría de mes según dónde corra el servidor.
+
+El formulario acota el calendario con `min`/`max` y bloquea el campo cuando el
+cambio ya se usó, pero **la regla se aplica en el servicio**: lo del formulario
+es comodidad, no seguridad.
+
+Para lo que queda fuera está `overrideEventDate()`, que mueve la fecha y
+recoloca el ancla. Solo la usa el equipo, a partir de un ticket.
+
+---
+
+## Tickets
+
+Una regla estricta sin válvula de escape se vuelve un problema de soporte. Los
+tickets ([`src/lib/services/tickets.ts`](src/lib/services/tickets.ts)) son esa
+válvula: el cliente los abre desde **`/admin/soporte`** y el equipo los contesta
+desde **`/admin/tickets`**.
+
+Cuando alguien choca con la regla de la fecha, el formulario del evento enlaza
+al alta de ticket con el asunto, la categoría y el evento ya puestos en la URL.
+
+- El estado lo decide quién escribe: contesta el equipo → `ANSWERED`; escribe el
+  cliente → `OPEN`, aunque estuviera cerrado.
+- Un ticket cuelga de la cuenta con `Cascade`, pero del evento con **`SetNull`**:
+  es la prueba de lo que se pidió y tiene que sobrevivir a que el evento se borre.
+- El aviso por correo **no puede tumbar la operación**: si Resend falla se
+  registra y se sigue, porque el ticket ya está guardado y se ve en el panel.
+- El correo del equipo sale de `SUPPORT_EMAIL`, y si no está, de
+  `NEXT_PUBLIC_CONTACT_EMAIL`.
+
+Igual que `/admin/clientes`, la bandeja del equipo responde **404** a quien no es
+superadmin, y el permiso se comprueba en la página, no solo en el menú.
 
 Esa sección solo la ven las cuentas con `isSuperAdmin`. El enlace se oculta a
 los demás, pero eso es cosmético: **la página y las cuatro rutas de API
@@ -322,12 +388,16 @@ npm run accounts quota  --email ana@cliente.mx --quota 3
 npm run accounts password --email ana@cliente.mx --password "…"
 ```
 
-Un evento **archivado** deja de consumir cupo, así que un cliente con cupo 1
-puede archivar la fiesta pasada y crear la siguiente. Crear —o reactivar— un
-evento por encima del cupo devuelve **402** con un mensaje que explica qué hacer.
+**Archivar un evento no devuelve el crédito.** Archivar solo lo saca de la vista
+del panel. Crear un evento sin créditos devuelve **402** con un mensaje que
+explica qué pasa.
 
-El cupo se comprueba en el servicio ([`lib/services/events.ts`](src/lib/services/events.ts)),
-no en la ruta, para que valga sea cual sea la vía de entrada.
+El crédito se consume en el servicio
+([`lib/services/events.ts`](src/lib/services/events.ts)), no en la ruta, para que
+valga sea cual sea la vía de entrada.
+
+`npm run accounts transfer` mueve el crédito junto con el evento: si no, la
+cuenta que lo recibe tendría un evento gratis y su crédito intacto.
 
 El cliente se administra solo desde **`/admin/cuenta`**: cambia su nombre, su
 correo de acceso y su contraseña sin intervención del equipo. Ambas operaciones
@@ -481,16 +551,16 @@ assets/                    Marco y tipografías de la miniatura social
 docker-compose.yml         PostgreSQL 17 de desarrollo (puerto 5433)
 scripts/
   env.ts                   Precedencia .env.local > .env
-  accounts.ts              Alta de cuentas y cupos
+  accounts.ts              Alta de cuentas y créditos
 prisma/
-  schema.prisma            AdminUser · Event · Invitation · Rsvp
+  schema.prisma            AdminUser · Event · Invitation · Rsvp · Ticket
   seed.ts                  Datos de ejemplo, idempotente (`--prod` los omite)
 src/
   app/
     i/[slug]/              Invitación pública + opengraph-image + fonts
     admin/login/           Acceso
     admin/(panel)/         Resumen · invitaciones · confirmaciones · evento ·
-                           cuenta · clientes (superadmin)
+                           soporte · cuenta · clientes y tickets (superadmin)
     api/                   Route Handlers
   components/
     invitation/            InvitationCard · InvitationInfo · RSVPModal ·
@@ -499,11 +569,15 @@ src/
     admin/                 AdminSidebar · StatsCard · InvitationTable ·
                            RSVPTable · EventManager · EventFormModal ·
                            ThemePicker · AccountForms · AccountManager ·
-                           AccountFormModal
+                           AccountFormModal · ActivatePlanState ·
+                           TicketBoard · TicketModals
+    pricing/               PlanCards (portada y panel)
     ui/                    Button · Field · Modal · Badge · States
   lib/
     services/              Lógica de negocio (account · accounts · events ·
-                           invitations · rsvp · stats)
+                           invitations · rsvp · stats · tickets)
+    pricing.ts             Planes, precios y contacto comercial
+    event-date.ts          Regla de cambio de fecha del evento
     themes.ts              Catálogo de temas (colores, copy, muestras)
     panel.ts               Contexto del panel: sesión + evento activo
     validations.ts         Esquemas Zod compartidos
@@ -524,8 +598,7 @@ Todas las respuestas siguen el mismo formato: `{ data }` en éxito y
 
 | Método | Ruta | Acceso | Descripción |
 | --- | --- | --- | --- |
-| `POST` | `/api/auth/login` | Público | Inicia sesión y emite la cookie. |
-| `POST` | `/api/auth/logout` | Público | Cierra la sesión. |
+| `*` | `/api/auth/[...all]` | Público | Todo lo de Better Auth: acceso, alta, cierre de sesión, recuperación y OAuth. |
 | `GET` | `/api/account` | Admin | Datos de la cuenta en sesión. |
 | `PATCH` | `/api/account` | Admin | Cambia nombre y correo. Exige la contraseña. |
 | `POST` | `/api/account/password` | Admin | Cambia la contraseña. Exige la actual. |
@@ -534,9 +607,9 @@ Todas las respuestas siguen el mismo formato: `{ data }` en éxito y
 | `PATCH` | `/api/admin/accounts/[id]` | Superadmin | Cambia correo, nombre, cupo o contraseña. |
 | `DELETE` | `/api/admin/accounts/[id]` | Superadmin | Elimina la cuenta con todo lo suyo. |
 | `GET` | `/api/events` | Admin | Lista los eventos de la cuenta y su cupo. |
-| `POST` | `/api/events` | Admin | Crea un evento. **402** si excede el cupo. |
+| `POST` | `/api/events` | Admin | Crea un evento y consume un crédito. **402** si no le quedan. |
 | `GET` | `/api/events/[id]` | Admin | Detalle de un evento de la cuenta. |
-| `PATCH` | `/api/events/[id]` | Admin | Actualiza, archiva o reactiva un evento. |
+| `PATCH` | `/api/events/[id]` | Admin | Actualiza, archiva o reactiva. **409** si la fecha rompe la regla. |
 | `DELETE` | `/api/events/[id]` | Admin | Elimina el evento con sus invitaciones. |
 | `POST` | `/api/events/active` | Admin | Cambia el evento en edición. |
 | `GET` | `/api/invitations` | Admin | Invitaciones del evento activo. |
@@ -548,6 +621,9 @@ Todas las respuestas siguen el mismo formato: `{ data }` en éxito y
 | `GET` | `/api/public/invitations/[slug]` | Público | Datos de la invitación para el invitado. |
 | `POST` | `/api/rsvp` | Público | Registra **o actualiza** la respuesta (upsert). |
 | `GET` | `/api/stats` | Admin | Métricas del evento activo. |
+| `POST` | `/api/tickets` | Admin | Abre un ticket con su primer mensaje. |
+| `PATCH` | `/api/tickets/[id]` | Admin | Cierra o reabre. Solo el suyo, salvo el equipo. |
+| `POST` | `/api/tickets/[id]/messages` | Admin | Responde en el hilo. |
 
 El RSVP es público a propósito: el “secreto” es el slug de la invitación. Una
 invitación tiene como máximo **un RSVP**, y el invitado puede cambiar su
@@ -579,8 +655,10 @@ npm test
 
 Cubren la lógica pura de mayor riesgo: la interpretación de la lista de
 invitados, la generación de slugs —que son el secreto de cada invitación, y no
-pueden repetirse ni siquiera dentro de un mismo lote— y la coherencia del
-catálogo de temas.
+pueden repetirse ni siquiera dentro de un mismo lote—, la coherencia del
+catálogo de temas y de los planes, y la regla de cambio de fecha, incluidos los
+casos que suelen fallar: el cruce de año, febrero bisiesto y guardar el
+formulario sin tocar la fecha.
 
 > **Pendiente:** no hay pruebas de integración del aislamiento entre cuentas,
 > que es la garantía más importante del sistema. Necesitan una base de datos de

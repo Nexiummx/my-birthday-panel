@@ -75,10 +75,17 @@ export function EventManager({
     });
 
   const remove = (event: AdminEvent) => {
-    const warning =
+    // Que borrar no devuelva el crédito tiene que decirse antes, no después:
+    // es lo primero que alguien supone al ver un botón de eliminar.
+    const warning = [
       event.invitationCount > 0
-        ? `Se eliminarán también sus ${event.invitationCount} invitaciones y las respuestas que ya hayan enviado. Esto no se puede deshacer.`
-        : "Esto no se puede deshacer.";
+        ? `Se eliminarán también sus ${event.invitationCount} invitaciones y las respuestas que ya hayan enviado.`
+        : null,
+      "Borrarlo no te devuelve el crédito del evento.",
+      "Esto no se puede deshacer.",
+    ]
+      .filter(Boolean)
+      .join(" ");
     if (!confirm(`¿Eliminar “${event.name}”?\n\n${warning}`)) return;
     return send(event.id, { method: "DELETE" });
   };
@@ -88,10 +95,10 @@ export function EventManager({
       <div className="flex flex-wrap items-center justify-between gap-4">
         <p className="font-sans text-sm text-ink-500">
           Plan {planForQuota(quota.limit)?.name ?? "sin activar"}: {quota.used} de {quota.limit}{" "}
-          {quota.limit === 1 ? "evento activo" : "eventos activos"}.{" "}
+          {quota.limit === 1 ? "evento usado" : "eventos usados"}.{" "}
           {quota.available === 0 && (
             <span className="text-ink-700">
-              Archiva uno para liberar espacio, o amplía tu plan.
+              Archivar no devuelve el crédito; para otra fiesta hace falta ampliar tu plan.
             </span>
           )}
         </p>

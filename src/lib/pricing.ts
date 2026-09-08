@@ -4,12 +4,12 @@
  * Es el único sitio donde viven los precios. Cambiarlos aquí los cambia en la
  * portada y en el panel a la vez, sin tocar componentes.
  *
- * Una advertencia importante sobre lo que se puede prometer: el único límite
- * que la aplicación aplica de verdad es `quota` — los eventos sin archivar que
- * una cuenta puede tener a la vez (ver `getQuota` en services/events.ts). Todo
- * lo demás que aparezca en `features` es una promesa de servicio que cumple el
- * equipo a mano. No agregues aquí un límite de invitados o de mensajes: no hay
- * nada en el código que lo haga cumplir.
+ * Una advertencia importante sobre lo que se puede prometer: los únicos
+ * límites que la aplicación aplica de verdad son dos — los créditos de evento
+ * (`quota`, ver `getQuota` en services/events.ts) y la regla de cambio de fecha
+ * (ver lib/event-date.ts). Todo lo demás que aparezca en `features` es una
+ * promesa de servicio que cumple el equipo a mano. No agregues aquí un límite
+ * de invitados o de mensajes: no hay nada en el código que lo haga cumplir.
  *
  * No importa nada del servidor: lo consumen la portada pública y el panel.
  */
@@ -21,7 +21,11 @@ export interface Plan {
   price: number;
   /** Qué se está pagando: "por evento", "al mes". */
   period: string;
-  /** Eventos activos a la vez. Es el valor que se pone en el cupo de la cuenta. */
+  /**
+   * Créditos de evento que otorga el plan. Es el valor que se pone en el cupo
+   * de la cuenta. Un crédito se consume al crear un evento y no vuelve al
+   * archivarlo: si volviera, un pago único daría fiesta cada año.
+   */
   quota: number;
   /** Para quién es, en una línea. */
   audience: string;
@@ -37,7 +41,9 @@ const INCLUDED = [
   "Invitados ilimitados",
   "Confirmaciones y mensajes en vivo",
   "Carga de la lista pegando desde Excel",
-  "Cambios de textos, fecha y lugar cuando quieras",
+  // La fecha NO entra aquí: se puede mover una vez y como mucho un mes. Ver
+  // lib/event-date.ts y la sección "Cambios de fecha" de los términos.
+  "Cambios de textos, lugar y detalles cuando quieras",
 ] as const;
 
 export const PLANS: readonly Plan[] = [
@@ -58,7 +64,7 @@ export const PLANS: readonly Plan[] = [
     period: "pago único",
     quota: 2,
     audience: "Dos celebraciones, o civil y fiesta por separado.",
-    features: [...INCLUDED, "Dos eventos abiertos al mismo tiempo"],
+    features: [...INCLUDED, "Dos eventos, cuando quieras usarlos"],
   },
   {
     id: "organizador",
@@ -69,7 +75,7 @@ export const PLANS: readonly Plan[] = [
     audience: "Salones, wedding planners y quien organiza todo el año.",
     features: [
       ...INCLUDED,
-      "Cinco eventos abiertos al mismo tiempo",
+      "Cinco créditos de evento cada mes",
       "Damos de alta tus eventos por ti",
       "Acompañamiento por WhatsApp",
     ],

@@ -122,10 +122,10 @@ function AccountFormDialog({ onClose, onSaved, account }: AccountFormProps) {
         </Field>
 
         <Field
-          label="Cupo de eventos activos"
+          label="Créditos de evento"
           htmlFor="account-quota"
           error={errors.eventQuota?.message}
-          hint="Cuántos eventos sin archivar puede tener a la vez."
+          hint="Cuántos eventos puede crear en total. Se consumen al crear y no vuelven al archivar; súbelo para devolver uno."
         >
           <Input
             id="account-quota"

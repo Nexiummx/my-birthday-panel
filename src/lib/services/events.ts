@@ -2,6 +2,7 @@ import "server-only";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { ServiceError } from "@/lib/services/errors";
+import { describeWindow, isSameDay, isWithinWindow } from "@/lib/event-date";
 import type { CreateEventInput, UpdateEventInput } from "@/lib/validations";
 import type { EventTheme } from "@/generated/prisma/enums";
 
@@ -51,52 +52,74 @@ export async function getActiveEvent(ownerId: string) {
   return prisma.event.findFirst({ where: { ownerId }, orderBy: { date: "desc" } });
 }
 
-/** Eventos sin archivar: son los que consumen cupo. */
+/** Eventos sin archivar. Ya no decide el cupo: es solo un dato del panel. */
 export async function countActiveEvents(ownerId: string) {
   return prisma.event.count({ where: { ownerId, archivedAt: null } });
 }
 
-/** Cupo de la cuenta y cuánto lleva usado. */
+/**
+ * Créditos de la cuenta: comprados, consumidos y disponibles.
+ *
+ * `used` sale de un contador de la cuenta y no de contar filas de `events`. La
+ * diferencia importa: contar filas haría que borrar un evento devolviera el
+ * crédito, y ese es justo el atajo que la regla existe para cerrar.
+ */
 export async function getQuota(ownerId: string) {
-  const [account, used] = await Promise.all([
-    prisma.adminUser.findUnique({ where: { id: ownerId }, select: { eventQuota: true } }),
-    countActiveEvents(ownerId),
-  ]);
+  const account = await prisma.adminUser.findUnique({
+    where: { id: ownerId },
+    select: { eventQuota: true, eventsUsed: true },
+  });
 
   const limit = account?.eventQuota ?? 0;
+  const used = account?.eventsUsed ?? 0;
   return { limit, used, available: Math.max(0, limit - used) };
 }
 
 export async function createEvent(ownerId: string, input: CreateEventInput) {
-  const { limit, used } = await getQuota(ownerId);
+  // Consumir y comprobar en la misma transacción, en ese orden: si se
+  // comprobara antes de incrementar, dos peticiones simultáneas con un solo
+  // crédito pasarían las dos. Aquí la segunda ve su propio incremento y
+  // revienta, y el rollback deshace el consumo.
+  return prisma.$transaction(async (tx) => {
+    const account = await tx.adminUser.update({
+      where: { id: ownerId },
+      data: { eventsUsed: { increment: 1 } },
+      select: { eventQuota: true, eventsUsed: true },
+    });
 
-  if (used >= limit) {
-    // Cupo 0 es el estado de una cuenta recién registrada, no un límite
-    // alcanzado: decirle "archiva uno" a quien no tiene ninguno no ayuda.
-    const message =
-      limit === 0
-        ? "Tu cuenta todavía no tiene eventos habilitados. Escríbenos para activar tu plan y empezar a invitar."
-        : limit === 1
-          ? "Tu plan incluye un evento a la vez. Archiva el actual o amplía tu plan para crear otro."
-          : `Tu plan incluye ${limit} eventos a la vez y ya tienes ${used}. Archiva uno o amplía tu plan.`;
+    if (account.eventsUsed > account.eventQuota) {
+      // 402: el límite es comercial, no un error de la petición.
+      throw new ServiceError(outOfCreditsMessage(account.eventQuota), 402);
+    }
 
-    // 402: el límite es comercial, no un error de la petición.
-    throw new ServiceError(message, 402);
-  }
-
-  // toEventData deja todo opcional (lo comparte la edición), así que los
-  // campos obligatorios se repiten aquí para que el tipo del create cuadre.
-  return prisma.event.create({
-    data: {
-      ...toEventData(input),
-      ownerId,
-      name: input.name,
-      date: input.date,
-      time: input.time,
-      location: input.location,
-      theme: input.theme as EventTheme,
-    },
+    // toEventData deja todo opcional (lo comparte la edición), así que los
+    // campos obligatorios se repiten aquí para que el tipo del create cuadre.
+    return tx.event.create({
+      data: {
+        ...toEventData(input),
+        ownerId,
+        name: input.name,
+        date: input.date,
+        // El ancla de la regla de fecha nace con el evento y no se toca más.
+        originalDate: input.date,
+        time: input.time,
+        location: input.location,
+        theme: input.theme as EventTheme,
+      },
+    });
   });
+}
+
+/** Por qué no puede crear otro evento, dicho de forma útil. */
+function outOfCreditsMessage(limit: number) {
+  // Crédito 0 es el estado de una cuenta recién registrada, no un límite
+  // alcanzado: decirle "ya usaste los tuyos" a quien nunca tuvo ninguno confunde.
+  if (limit === 0) {
+    return "Tu cuenta todavía no tiene eventos habilitados. Escríbenos para activar tu plan y empezar a invitar.";
+  }
+  return limit === 1
+    ? "Tu plan incluye un evento y ya lo usaste. Archivar el anterior no libera el crédito: para otra fiesta hace falta otro evento."
+    : `Tu plan incluye ${limit} eventos y ya los usaste todos. Archivar los anteriores no libera créditos: para otra fiesta hace falta ampliar tu plan.`;
 }
 
 export async function updateEvent(id: string, ownerId: string, input: UpdateEventInput) {
@@ -107,13 +130,24 @@ export async function updateEvent(id: string, ownerId: string, input: UpdateEven
 
   const { archived, ...fields } = input;
 
-  // Desarchivar vuelve a ocupar cupo, así que se comprueba igual que al crear.
-  if (archived === false && event.archivedAt !== null) {
-    const { limit, used } = await getQuota(ownerId);
-    if (used >= limit) {
+  // Archivar y desarchivar ya no tocan créditos: el crédito se gastó al crear.
+
+  // La fecha es el único campo con regla propia, porque es el que convierte un
+  // evento viejo en uno nuevo sin pagar. Ver lib/event-date.ts.
+  const movesDate = fields.date !== undefined && !isSameDay(fields.date, event.date);
+
+  if (movesDate) {
+    if (event.dateChangedAt !== null) {
       throw new ServiceError(
-        "No puedes reactivar este evento: ya alcanzaste el número de eventos activos de tu plan.",
-        402
+        "Este evento ya usó su único cambio de fecha. Abre un ticket y lo movemos nosotros.",
+        409
+      );
+    }
+
+    if (!isWithinWindow(fields.date!, event.originalDate)) {
+      throw new ServiceError(
+        `La fecha solo puede moverse ${describeWindow(event.originalDate)}. Para una fecha fuera de ese rango, abre un ticket.`,
+        409
       );
     }
   }
@@ -122,8 +156,24 @@ export async function updateEvent(id: string, ownerId: string, input: UpdateEven
     where: { id },
     data: {
       ...toEventData(fields),
+      // Se marca solo cuando la fecha se movió de verdad: guardar el formulario
+      // sin tocarla no puede consumir el único cambio disponible.
+      dateChangedAt: movesDate ? new Date() : undefined,
       archivedAt: archived === undefined ? undefined : archived ? new Date() : null,
     },
+  });
+}
+
+/**
+ * Mueve la fecha saltándose la regla. Solo para el equipo, desde un ticket: es
+ * la válvula de escape que hace tolerable una regla estricta.
+ */
+export async function overrideEventDate(id: string, date: Date) {
+  return prisma.event.update({
+    where: { id },
+    // El ancla se recoloca: a partir de aquí la ventana del cliente se mide
+    // desde la fecha nueva, y se le devuelve su cambio.
+    data: { date, originalDate: date, dateChangedAt: null },
   });
 }
 

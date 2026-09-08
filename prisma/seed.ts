@@ -121,7 +121,8 @@ async function seedEvent(ownerId: string) {
   // reasignado a otra cuenta a propósito y el seed no debe deshacerlo.
   const event = existing
     ? await prisma.event.update({ where: { id: existing.id }, data })
-    : await prisma.event.create({ data: { ...data, ownerId } });
+    // originalDate ancla la regla de cambio de fecha y solo se fija al crear.
+    : await prisma.event.create({ data: { ...data, ownerId, originalDate: data.date } });
 
   console.log(`✔ Evento listo: ${event.name}`);
   return event;

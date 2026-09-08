@@ -20,7 +20,7 @@ export function ActivatePlanState({ accountEmail }: { accountEmail: string }) {
         </h2>
         <p className="mx-auto mt-2 max-w-xl font-sans text-sm leading-relaxed text-ink-500">
           Elige el plan que te sirva y escríbenos por {CONTACT_LABEL}. En cuanto quede el pago
-          habilitamos tu cupo y podrás crear tu evento desde esta misma pantalla.
+          acreditamos tus eventos y podrás crear el tuyo desde esta misma pantalla.
         </p>
         <p className="mt-3 font-sans text-xs text-ink-500">
           Tu cuenta es <span className="text-ink-700">{accountEmail}</span> · {CONTACT.email}

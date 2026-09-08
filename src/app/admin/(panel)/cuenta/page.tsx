@@ -29,10 +29,9 @@ export default async function AccountPage() {
         </h1>
         <p className="mt-2 max-w-2xl font-sans text-sm text-ink-500">
           Tu plan incluye{" "}
-          {account.eventQuota === 1
-            ? "un evento activo"
-            : `${account.eventQuota} eventos activos`}
-          . Cuenta creada el {formatLongDate(account.createdAt)}.
+          {account.eventQuota === 1 ? "un evento" : `${account.eventQuota} eventos`}, y llevas{" "}
+          {account.eventsUsed} {account.eventsUsed === 1 ? "usado" : "usados"}. Cuenta creada el{" "}
+          {formatLongDate(account.createdAt)}.
         </p>
       </header>
 

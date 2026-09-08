@@ -1,13 +1,14 @@
 /**
  * Alta y mantenimiento de cuentas del panel.
  *
- * No hay registro público a propósito: las cuentas las crea el equipo, y el
- * cupo de eventos es la palanca comercial (se sube al cobrar). Este script es
- * la única vía para ambas cosas.
+ * Cualquiera puede registrarse, pero nace con 0 créditos de evento. Los
+ * créditos son la palanca comercial: se suben al cobrar, desde /admin/clientes
+ * o desde aquí. Un crédito se consume al crear un evento y no vuelve al
+ * archivarlo, así que "devolver" uno es subir el cupo.
  *
  *   npx tsx scripts/accounts.ts list
  *   npx tsx scripts/accounts.ts create --email ana@cliente.mx --password "…" --quota 1 --name "Ana"
- *   npx tsx scripts/accounts.ts quota  --email ana@cliente.mx --quota 3
+ *   npx tsx scripts/accounts.ts quota  --email ana@cliente.mx --quota 3   (créditos totales)
  *   npx tsx scripts/accounts.ts password --email ana@cliente.mx --password "…"
  *   npx tsx scripts/accounts.ts super    --email tu@nexiummx.com --on
  *   npx tsx scripts/accounts.ts transfer --event "Maya · 29" --to ana@cliente.mx
@@ -90,14 +91,14 @@ async function list() {
   }
 
   for (const account of accounts) {
-    // Solo los eventos sin archivar consumen cupo.
     const active = await prisma.event.count({
       where: { ownerId: account.id, archivedAt: null },
     });
     const badge = account.isSuperAdmin ? " [superadmin]" : "";
     console.log(
       `${account.email}${badge}\n` +
-        `  cupo: ${active}/${account.eventQuota} activos · ${account._count.events} eventos en total\n`
+        `  créditos: ${account.eventsUsed}/${account.eventQuota} usados · ` +
+        `${account._count.events} eventos (${active} sin archivar)\n`
     );
   }
 }
@@ -123,7 +124,7 @@ async function create() {
 
   await setCredential(account.id, password);
 
-  console.log(`✔ Cuenta creada: ${email} · cupo de ${quota} evento(s) activo(s)`);
+  console.log(`✔ Cuenta creada: ${email} · ${quota} crédito(s) de evento`);
 }
 
 async function setQuota() {
@@ -135,14 +136,14 @@ async function setQuota() {
     data: { eventQuota: quota },
   });
 
-  const active = await prisma.event.count({ where: { ownerId: account.id, archivedAt: null } });
-  console.log(`✔ ${email}: cupo ${quota} (usa ${active})`);
+  console.log(`✔ ${email}: ${quota} créditos (lleva ${account.eventsUsed} usados)`);
 
-  if (active > quota) {
-    // Bajar el cupo no archiva nada: los eventos de más siguen vivos, pero la
-    // cuenta no podrá crear otro hasta archivarlos.
+  if (account.eventsUsed > quota) {
+    // Bajar el cupo no borra nada: los eventos ya creados siguen vivos, pero la
+    // cuenta no podrá crear otro hasta que se le vuelva a subir.
     console.warn(
-      `⚠  Tiene ${active} eventos activos, más que su cupo. No se archiva ninguno; simplemente no podrá crear más.`
+      `⚠  Ya usó ${account.eventsUsed} créditos, más de los que acabas de darle. ` +
+        `No se borra ningún evento; simplemente no podrá crear más.`
     );
   }
 }
@@ -217,7 +218,16 @@ async function transfer() {
     return;
   }
 
-  await prisma.event.update({ where: { id: event.id }, data: { ownerId: target.id } });
+  // El crédito viaja con el evento: si no, la cuenta que lo recibe tendría un
+  // evento gratis y podría crear otro con su crédito intacto. No se le devuelve
+  // a quien lo cede —el contador solo sube—; para eso está subirle el cupo.
+  await prisma.$transaction([
+    prisma.event.update({ where: { id: event.id }, data: { ownerId: target.id } }),
+    prisma.adminUser.update({
+      where: { id: target.id },
+      data: { eventsUsed: { increment: 1 } },
+    }),
+  ]);
 
   console.log(
     `✔ "${event.name}" (${event._count.invitations} invitaciones) pasó de ` +
@@ -226,16 +236,12 @@ async function transfer() {
 
   // El cupo es una guardarraíl comercial, no de integridad: se avisa pero no
   // se bloquea, porque el traspaso suele ser justo para arreglar un reparto.
-  if (event.archivedAt === null) {
-    const active = await prisma.event.count({
-      where: { ownerId: target.id, archivedAt: null },
-    });
-    if (active > target.eventQuota) {
-      console.warn(
-        `⚠  ${email} queda con ${active} eventos activos y un cupo de ${target.eventQuota}. ` +
-          `No podrá crear más hasta que le subas el cupo o archive alguno.`
-      );
-    }
+  const used = target.eventsUsed + 1;
+  if (used > target.eventQuota) {
+    console.warn(
+      `⚠  ${email} queda con ${used} créditos usados y solo ${target.eventQuota} comprados. ` +
+        `No podrá crear más hasta que le subas el cupo.`
+    );
   }
 }
 

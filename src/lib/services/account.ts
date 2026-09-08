@@ -8,7 +8,14 @@ import type { ChangePasswordInput, UpdateProfileInput } from "@/lib/validations"
 export async function getAccount(id: string) {
   return prisma.adminUser.findUnique({
     where: { id },
-    select: { id: true, email: true, name: true, eventQuota: true, createdAt: true },
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      eventQuota: true,
+      eventsUsed: true,
+      createdAt: true,
+    },
   });
 }
 

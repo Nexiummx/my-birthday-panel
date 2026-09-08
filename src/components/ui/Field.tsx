@@ -18,7 +18,7 @@ export function Field({
   label: string;
   htmlFor: string;
   error?: string;
-  hint?: string;
+  hint?: ReactNode;
   children: ReactNode;
 }) {
   return (
