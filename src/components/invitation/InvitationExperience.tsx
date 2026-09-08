@@ -2,7 +2,8 @@
 
 import { useCallback, useRef, useState } from "react";
 import gsap from "gsap";
-import { Sparkles } from "lucide-react";
+import Link from "next/link";
+import { Camera, Sparkles } from "lucide-react";
 import { Scene, SceneForeground } from "@/components/invitation/scenes/Scene";
 import { InvitationCard } from "@/components/invitation/InvitationCard";
 import { CURTAIN_BRANCH_CLASS } from "@/components/invitation/OpeningCurtain";
@@ -111,11 +112,26 @@ export function InvitationExperience({ invitation }: { invitation: PublicInvitat
             <InvitationCard
               invitation={invitation}
               action={
-                <RsvpAction
-                  rsvp={rsvp}
-                  onOpen={() => setRsvpOpen(true)}
-                  disabled={!revealed}
-                />
+                <>
+                  <RsvpAction
+                    rsvp={rsvp}
+                    onOpen={() => setRsvpOpen(true)}
+                    disabled={!revealed}
+                  />
+                  {/* Entra por el slug y no por el código del evento: así la
+                      foto queda firmada con el nombre del invitado sin
+                      preguntárselo. */}
+                  {invitation.event.photosEnabled && (
+                    <Link
+                      href={`/i/${invitation.slug}/fotos`}
+                      tabIndex={revealed ? undefined : -1}
+                      className="mt-3 inline-flex items-center gap-2 font-sans text-[11px] uppercase tracking-[0.24em] text-ink-500 underline decoration-gold-400/50 underline-offset-4 transition-colors hover:text-ink-900"
+                    >
+                      <Camera className="size-3.5" aria-hidden="true" />
+                      Fotos de la fiesta
+                    </Link>
+                  )}
+                </>
               }
             />
           </div>

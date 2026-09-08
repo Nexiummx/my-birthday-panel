@@ -43,6 +43,7 @@ export function toPublicInvitation(invitation: InvitationWithEvent): PublicInvit
       dressCodeUrl: event.dressCodeUrl,
       invitationImage: event.invitationImage,
       theme,
+      photosEnabled: event.photosEnabled,
       // Lo que el anfitrión dejó vacío cae al texto por defecto del tema.
       copy: resolveCopy(theme, {
         eyebrow: event.sealedEyebrow,

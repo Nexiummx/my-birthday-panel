@@ -9,6 +9,8 @@ temas** —Bosque Encantado, Vaqueros, Barbie y Noche de Brillos—, que cambian
 paleta, las tipografías, la escena de fondo y los textos de bienvenida.
 
 - **Invitación pública:** `/i/[slug]` — p. ej. `/i/mariana-lopez`
+- **Fotos de la fiesta:** `/f/[code]` (el QR de las mesas) y `/i/[slug]/fotos` (desde la invitación)
+- **El recuerdo:** `/r/[code]`
 - **Panel del cliente:** `/admin/login`, `/admin`, `/admin/invitaciones`, `/admin/confirmaciones`, `/admin/evento`, `/admin/soporte`, `/admin/cuenta`
 - **Solo equipo:** `/admin/clientes` (cuentas y créditos) y `/admin/tickets`
 
@@ -89,6 +91,8 @@ Variables:
 | `NEXT_PUBLIC_CONTACT_WHATSAPP` | Número comercial, solo dígitos con lada país. Sin él los botones de contratación caen a `mailto:`. |
 | `NEXT_PUBLIC_CONTACT_EMAIL` | Correo comercial de respaldo. |
 | `SUPPORT_EMAIL` | Buzón al que llegan los avisos de tickets. Sin él se usa el de contacto. |
+| `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` | Almacenamiento de las fotos. Sin ellas se usa el disco local (solo desarrollo). |
+| `SUPABASE_STORAGE_BUCKET` | Bucket de las fotos. Por defecto `fotos`. |
 
 `.env` está en `.gitignore`; `.env.example` sí se versiona.
 
@@ -445,6 +449,124 @@ revocada desde otro dispositivo, o base recreada en desarrollo.
 
 ---
 
+## Fotos y el recuerdo
+
+Los invitados suben fotos de la fiesta y el evento genera un **recuerdo**:
+un resumen en pantallas, estilo stories, con lo que pasó.
+
+### Dos puertas de entrada
+
+| Ruta | Quién | Cómo se firma la foto |
+| --- | --- | --- |
+| `/f/[code]` | Cualquiera con el QR de las mesas | Escribe su nombre |
+| `/i/[slug]/fotos` | Un invitado, desde su invitación | Con su nombre, sin preguntarle |
+
+Las dos existen porque **los acompañantes no tienen invitación propia** y son
+justo quienes más fotos toman. El `code` es un código público del evento
+(`Event.shareCode`), corto y aleatorio, generado con un alfabeto de 32 símbolos
+sin `0`, `1`, `l` ni `o`, para poder imprimirlo y dictarlo sin confusiones.
+
+Cuando se entra con `slug`, **el nombre lo pone el servidor**: el `authorName`
+que llegue en el cuerpo se ignora, para que nadie firme con el nombre de otro.
+
+### El archivo no pasa por el servidor
+
+Son tres pasos por foto en vez de uno, y no es rebuscado: en Vercel el cuerpo de
+una función serverless no llega a 5 MB, así que proxear una foto de móvil
+rompería con la primera.
+
+1. El navegador **comprime** la foto (1600 px, calidad 0.82 → unos 300 KB).
+   Ver [`lib/image.ts`](src/lib/image.ts). En una fiesta se sube con datos
+   móviles y mala cobertura: mandar el original son esperas eternas.
+2. `POST /api/public/photos/firmar` autoriza y devuelve **a dónde** mandarla.
+3. El navegador la sube directo, y `POST /api/public/photos` la da de alta.
+
+Las subidas van **en serie**: cinco a la vez en la red de una fiesta se
+estorban entre ellas y fallan más que de una en una.
+
+### Almacenamiento
+
+[`lib/storage.ts`](src/lib/storage.ts) tiene dos controladores tras una interfaz
+estrecha. **Nada fuera de ese archivo sabe dónde viven los archivos.**
+
+- **supabase** — producción. API REST por `fetch`, sin SDK: son cuatro llamadas.
+- **local** — desarrollo. Escribe en `.uploads/` y sirve por `/api/media`. Existe
+  para poder probar el flujo completo sin credenciales, y de paso obliga a que
+  la interfaz sea real y no decorativa.
+
+Se elige solo: Supabase manda en cuanto están sus dos variables. El panel avisa
+cuando está en local, porque ahí las fotos no se conservan.
+
+La ruta lleva un UUID aleatorio, así que la URL no se adivina: el mismo trato
+que ya tienen los slugs de invitación.
+
+### Límites
+
+Viven en el servicio y no en la ruta, porque las dos puertas son públicas:
+**500 fotos por evento**, **8 MB por archivo**, y solo JPG, PNG o WebP. Además,
+la ruta que se registra tiene que empezar por la del propio evento; si no,
+cualquiera podría colgar de su evento un archivo ajeno del bucket.
+
+### Moderación
+
+Las fotos se publican **al instante**: en una fiesta la gracia es verlas
+aparecer, y pedir aprobación mata la participación. El anfitrión modera después
+desde `/admin/fotos`.
+
+**Ocultar y borrar son cosas distintas.** Ocultar es reversible y no toca el
+archivo: quita de la vista una foto desafortunada sin destruir el recuerdo de
+quien la subió. Borrar sí elimina el archivo. El borrado se hace primero en base
+y después en el almacenamiento: si el almacenamiento falla queda un archivo
+huérfano, que es mucho más barato que una foto visible cuya fila ya no existe y
+que por tanto nadie puede administrar.
+
+### El recuerdo
+
+[`services/rewind.ts`](src/lib/services/rewind.ts) arma la lista de pantallas
+**en el servidor**. El navegador no recibe la lista de invitados ni los mensajes
+que no se van a enseñar, y añadir una pantalla es añadir un tipo ahí, sin tocar
+la animación.
+
+Las pantallas sin datos no se generan: un evento sin fotos no enseña "0 fotos",
+simplemente no tiene esa pantalla.
+
+En el reproductor, **una sola línea de tiempo de GSAP por pantalla** gobierna la
+entrada de los elementos, la barra de progreso y el salto a la siguiente.
+Tenerlo todo junto es lo que hace que pausar funcione de verdad —se pausa una
+cosa, no tres que se desincronizan— y que la barra siempre coincida con lo que
+se ve.
+
+El tipo grande se mide en `vh` y no en `vw`: estas pantallas ocupan el viewport
+entero y en un móvil en horizontal el texto no cabía.
+
+Con **reducir movimiento** activo no hay animación ni avance automático: las
+pantallas se pasan a mano y todo está visible desde el primer frame.
+
+### Fotos de prueba
+
+Para ver cómo se comportan la galería y el recuerdo con material de verdad:
+
+```bash
+npm run seed:fotos                                  # 30 fotos en el primer evento
+npm run seed:fotos -- --code a9d658727d --count 40
+npm run seed:fotos -- --limpiar                     # las borra
+```
+
+**No son fotos: son escenas dibujadas** —luces desenfocadas, confeti, un pastel,
+globos, la pista— rasterizadas a JPEG con sharp
+([`scripts/party-images.ts`](scripts/party-images.ts)). No se descarga nada ni
+hace falta que nadie ceda su cara para que probemos una cuadrícula. Vienen en
+vertical y horizontal mezcladas, con autores repetidos para que "quien más
+subió" tenga un ganador de verdad, y con las horas repartidas a lo largo de la
+noche.
+
+Suben por la **misma puerta que un invitado** —firmar, subir, registrar— en vez
+de insertar filas: así el material de prueba prueba también el camino real, y
+funciona igual con el almacenamiento local que con Supabase. Necesita la
+aplicación levantada.
+
+---
+
 ## Aislamiento entre cuentas
 
 Todo evento cuelga de una cuenta, y **cada consulta del panel cruza por el dueño
@@ -584,12 +706,16 @@ docker-compose.yml         PostgreSQL 17 de desarrollo (puerto 5433)
 scripts/
   env.ts                   Precedencia .env.local > .env
   accounts.ts              Alta de cuentas y créditos
+  party-images.ts          Escenas de fiesta dibujadas (JPEG con sharp)
+  seed-photos.ts           Llena la galería de un evento para probar
 prisma/
-  schema.prisma            AdminUser · Event · Invitation · Rsvp · Ticket
+  schema.prisma            AdminUser · Event · Invitation · Rsvp · Ticket · Photo
   seed.ts                  Datos de ejemplo, idempotente (`--prod` los omite)
 src/
   app/
-    i/[slug]/              Invitación pública + opengraph-image + fonts
+    i/[slug]/              Invitación pública + opengraph-image + /fotos
+    f/[code]/              Subida de fotos (el QR de las mesas)
+    r/[code]/              El recuerdo, en formato stories
     admin/login/           Acceso
     admin/(panel)/         Resumen · invitaciones · confirmaciones · evento ·
                            soporte · cuenta · clientes y tickets (superadmin)
@@ -604,11 +730,17 @@ src/
                            AccountFormModal · ActivatePlanState ·
                            TicketBoard · TicketModals
     pricing/               PlanCards (portada y panel)
+    photos/                PhotoUploader · PhotoGallery · EventPhotosScreen ·
+                           RewindPlayer · RewindCards
     ui/                    Button · Field · Modal · Badge · States
   lib/
     services/              Lógica de negocio (account · accounts · events ·
-                           invitations · rsvp · stats · tickets)
+                           invitations · rsvp · stats · tickets · photos ·
+                           rewind)
     pricing.ts             Planes, precios y contacto comercial
+    storage.ts             Almacenamiento (supabase | local)
+    image.ts               Compresión de fotos en el navegador
+    share-code.ts          Código público del evento
     event-date.ts          Regla de cambio de fecha del evento
     themes.ts              Catálogo de temas (colores, copy, muestras)
     panel.ts               Contexto del panel: sesión + evento activo
@@ -656,6 +788,12 @@ Todas las respuestas siguen el mismo formato: `{ data }` en éxito y
 | `POST` | `/api/tickets` | Admin | Abre un ticket con su primer mensaje. |
 | `PATCH` | `/api/tickets/[id]` | Admin | Cierra o reabre. Solo el suyo, salvo el equipo. |
 | `POST` | `/api/tickets/[id]/messages` | Admin | Responde en el hilo. |
+| `POST` | `/api/public/photos/firmar` | Público | Autoriza una subida y dice a dónde mandarla. |
+| `POST` | `/api/public/photos` | Público | Da de alta la foto ya subida. |
+| `PATCH` | `/api/photos/[id]` | Admin | Oculta o vuelve a mostrar una foto. |
+| `DELETE` | `/api/photos/[id]` | Admin | Borra la foto y su archivo. |
+| `PUT` | `/api/media/subir` | Firmada | Solo desarrollo: recibe el archivo. |
+| `GET` | `/api/media/[...path]` | Público | Solo desarrollo: sirve el archivo. |
 
 El RSVP es público a propósito: el “secreto” es el slug de la invitación. Una
 invitación tiene como máximo **un RSVP**, y el invitado puede cambiar su
@@ -671,6 +809,9 @@ en una sola transacción para que nunca diverjan.
 | `/` | Portada del producto. **No consulta la base a propósito**: la versión anterior enlazaba la primera invitación que encontrara, con el nombre del invitado incluido. Como el secreto de una invitación es su slug, eso permitía a cualquiera abrirla y confirmar en nombre de esa persona. |
 | `/privacidad` | Aviso de privacidad. Google exige uno accesible para verificar la app de OAuth. |
 | `/terminos` | Términos del servicio. |
+| `/f/[code]` | Subida de fotos del evento. Enlace privado, sin indexar. |
+| `/i/[slug]/fotos` | Lo mismo, desde la invitación de un invitado. |
+| `/r/[code]` | El recuerdo del evento. |
 
 > Los datos del responsable viven en `RESPONSABLE`, dentro de
 > [`LegalPage.tsx`](src/components/legal/LegalPage.tsx). **Hay que sustituirlos
@@ -688,9 +829,10 @@ npm test
 Cubren la lógica pura de mayor riesgo: la interpretación de la lista de
 invitados, la generación de slugs —que son el secreto de cada invitación, y no
 pueden repetirse ni siquiera dentro de un mismo lote—, la coherencia del
-catálogo de temas y de los planes, y la regla de cambio de fecha, incluidos los
+catálogo de temas y de los planes, la regla de cambio de fecha —incluidos los
 casos que suelen fallar: el cruce de año, febrero bisiesto y guardar el
-formulario sin tocar la fecha.
+formulario sin tocar la fecha— y el código público del evento, con su reparto
+de símbolos.
 
 > **Pendiente:** no hay pruebas de integración del aislamiento entre cuentas,
 > que es la garantía más importante del sistema. Necesitan una base de datos de

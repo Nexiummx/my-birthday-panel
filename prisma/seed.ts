@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../src/generated/prisma/client";
 import type { InvitationStatus } from "../src/generated/prisma/enums";
+import { newShareCode } from "../src/lib/share-code";
 
 const connectionString = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
 
@@ -122,7 +123,9 @@ async function seedEvent(ownerId: string) {
   const event = existing
     ? await prisma.event.update({ where: { id: existing.id }, data })
     // originalDate ancla la regla de cambio de fecha y solo se fija al crear.
-    : await prisma.event.create({ data: { ...data, ownerId, originalDate: data.date } });
+    : await prisma.event.create({
+        data: { ...data, ownerId, originalDate: data.date, shareCode: newShareCode() },
+      });
 
   console.log(`✔ Evento listo: ${event.name}`);
   return event;

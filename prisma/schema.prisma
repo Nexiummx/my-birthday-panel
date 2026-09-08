@@ -169,6 +169,15 @@ model Event {
   /// Para cualquier otro movimiento el cliente abre un ticket.
   dateChangedAt DateTime?
 
+  /// Código público del evento, corto y aleatorio. Es la puerta de las fotos:
+  /// /f/[code] para subir (el QR de las mesas) y /r/[code] para el recuerdo.
+  /// No se usa el id para no exponerlo, y va aparte de los slugs de invitación
+  /// porque identifica al evento entero, no a un invitado.
+  shareCode String @unique
+
+  /// El anfitrión puede cerrar la subida de fotos sin borrar nada.
+  photosEnabled Boolean @default(true)
+
   /// Archivar solo saca el evento de la vista: no devuelve el crédito.
   archivedAt DateTime?
 
@@ -178,6 +187,7 @@ model Event {
   owner       AdminUser    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   invitations Invitation[]
   tickets     Ticket[]
+  photos      Photo[]
 
   @@index([ownerId])
   @@map("events")
@@ -195,9 +205,10 @@ model Invitation {
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
 
-  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  event  Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
   /// Una invitación solo puede tener un RSVP activo.
-  rsvp  Rsvp?
+  rsvp   Rsvp?
+  photos Photo[]
 
   @@index([eventId])
   @@index([status])
@@ -282,4 +293,46 @@ model TicketMessage {
 
   @@index([ticketId])
   @@map("ticket_messages")
+}
+
+/// Foto que un invitado subió del evento.
+///
+/// El archivo vive en el almacenamiento (Supabase Storage); aquí solo queda su
+/// ruta. La ruta lleva un cuid aleatorio, así que la URL no es adivinable: el
+/// mismo modelo de "el secreto es el enlace" que ya usan las invitaciones.
+model Photo {
+  id      String @id @default(cuid())
+  eventId String
+
+  /// Quién la subió, cuando entró por su enlace de invitación. NULL si llegó
+  /// por el QR general. SetNull y no Cascade: borrar a un invitado de la lista
+  /// no debe borrar las fotos de la fiesta.
+  invitationId String?
+
+  /// Nombre que se muestra. Del invitado si vino por invitación, escrito a mano
+  /// si vino por el QR. Se guarda plano para que la foto siga firmada aunque la
+  /// invitación desaparezca.
+  authorName String
+
+  /// Ruta dentro del bucket, no una URL: el proveedor puede cambiar.
+  storagePath String @unique
+  width       Int
+  height      Int
+  /// Tamaño del archivo ya comprimido en el navegador.
+  bytes       Int
+
+  caption String?
+
+  /// Ocultada por el anfitrión. NULL = visible. No se borra el archivo: ocultar
+  /// tiene que ser reversible y no destruye el recuerdo de nadie.
+  hiddenAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  event      Event       @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  invitation Invitation? @relation(fields: [invitationId], references: [id], onDelete: SetNull)
+
+  @@index([eventId, hiddenAt])
+  @@index([invitationId])
+  @@map("photos")
 }

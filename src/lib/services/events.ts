@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { ServiceError } from "@/lib/services/errors";
 import { describeWindow, isSameDay, isWithinWindow } from "@/lib/event-date";
+import { newShareCode } from "@/lib/share-code";
 import type { CreateEventInput, UpdateEventInput } from "@/lib/validations";
 import type { EventTheme } from "@/generated/prisma/enums";
 
@@ -102,6 +103,9 @@ export async function createEvent(ownerId: string, input: CreateEventInput) {
         date: input.date,
         // El ancla de la regla de fecha nace con el evento y no se toca más.
         originalDate: input.date,
+        // 32^10 combinaciones: no se reintenta ante colisión porque no va a
+        // haberla, y la restricción única la convertiría en error visible.
+        shareCode: newShareCode(),
         time: input.time,
         location: input.location,
         theme: input.theme as EventTheme,
@@ -128,7 +132,7 @@ export async function updateEvent(id: string, ownerId: string, input: UpdateEven
     throw new ServiceError("El evento no existe", 404);
   }
 
-  const { archived, ...fields } = input;
+  const { archived, photosEnabled, ...fields } = input;
 
   // Archivar y desarchivar ya no tocan créditos: el crédito se gastó al crear.
 
@@ -159,6 +163,7 @@ export async function updateEvent(id: string, ownerId: string, input: UpdateEven
       // Se marca solo cuando la fecha se movió de verdad: guardar el formulario
       // sin tocarla no puede consumir el único cambio disponible.
       dateChangedAt: movesDate ? new Date() : undefined,
+      photosEnabled,
       archivedAt: archived === undefined ? undefined : archived ? new Date() : null,
     },
   });

@@ -148,7 +148,11 @@ export type CreateEventInput = z.infer<typeof createEventSchema>;
 /** Edición de evento: todos los campos opcionales, pero al menos uno. */
 export const updateEventSchema = createEventSchema
   .partial()
-  .extend({ archived: z.boolean().optional() })
+  .extend({
+    archived: z.boolean().optional(),
+    /// Cierra la subida de fotos sin borrar las que ya hay.
+    photosEnabled: z.boolean().optional(),
+  })
   .refine((value) => Object.keys(value).length > 0, {
     message: "No hay cambios que guardar",
   });
@@ -436,3 +440,50 @@ export const resolveDateSchema = z.object({
   date: z.coerce.date<Date>("Fecha inválida"),
 });
 export type ResolveDateInput = z.infer<typeof resolveDateSchema>;
+
+/* ─────────────────────────────── Fotos ─────────────────────────────── */
+
+/**
+ * Las dos puertas de subida. Al menos una tiene que venir, y el servicio decide
+ * cuál manda: con `slug` la foto se firma con el nombre del invitado y el
+ * `authorName` del cuerpo se ignora.
+ */
+const photoSource = {
+  code: z.string().trim().max(40).optional(),
+  slug: z.string().trim().max(120).optional(),
+};
+
+const requireSource = (value: { code?: string; slug?: string }, ctx: z.RefinementCtx) => {
+  if (!value.code && !value.slug) {
+    ctx.addIssue({ code: "custom", message: "Falta el evento", path: ["code"] });
+  }
+};
+
+/** Paso 1: pedir permiso para subir. Devuelve a dónde mandar el archivo. */
+export const signPhotoSchema = z
+  .object({
+    ...photoSource,
+    contentType: z.string().trim().min(1, "Falta el tipo de archivo").max(60),
+    bytes: z.coerce.number<number>().int().positive("El archivo está vacío"),
+  })
+  .superRefine(requireSource);
+export type SignPhotoInput = z.infer<typeof signPhotoSchema>;
+
+/** Paso 2: confirmar que el archivo ya está arriba. */
+export const registerPhotoSchema = z
+  .object({
+    ...photoSource,
+    path: z.string().trim().min(1).max(300),
+    width: z.coerce.number<number>().int().positive(),
+    height: z.coerce.number<number>().int().positive(),
+    bytes: z.coerce.number<number>().int().positive(),
+    /// Solo se usa cuando se entra por el QR: con invitación manda su nombre.
+    authorName: z.string().trim().max(80).optional(),
+    caption: z.string().trim().max(140, "El pie de foto es demasiado largo").optional(),
+  })
+  .superRefine(requireSource);
+export type RegisterPhotoInput = z.infer<typeof registerPhotoSchema>;
+
+/** Acciones del anfitrión sobre una foto. */
+export const updatePhotoSchema = z.object({ hidden: z.boolean() });
+export type UpdatePhotoInput = z.infer<typeof updatePhotoSchema>;

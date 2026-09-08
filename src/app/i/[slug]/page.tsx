@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { InvitationExperience } from "@/components/invitation/InvitationExperience";
 import { toPublicInvitation } from "@/lib/public-invitation";
 import { getTheme } from "@/lib/themes";
-import { themeFontVariables } from "./fonts";
+import { themeFontVariables } from "@/lib/theme-fonts";
 import { getPublicInvitation } from "@/lib/services/invitations";
 import { formatInvitationDate } from "@/lib/utils";
 

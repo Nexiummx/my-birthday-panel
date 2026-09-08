@@ -46,3 +46,7 @@ next-env.d.ts
 
 # notas locales de configuración de la máquina
 /CAMBIAR-CUENTA.md
+
+
+# Fotos del controlador local de almacenamiento (solo desarrollo)
+.uploads/

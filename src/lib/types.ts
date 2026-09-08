@@ -18,6 +18,8 @@ export interface PublicEvent {
   invitationImage: string | null;
   /** Estética con la que se renderiza la experiencia. */
   theme: EventThemeValue;
+  /** Si está abierta la subida de fotos: decide si aparece el enlace. */
+  photosEnabled: boolean;
   /** Textos de la portada, ya mezclados con los del tema. */
   copy: ThemeCopy;
 }

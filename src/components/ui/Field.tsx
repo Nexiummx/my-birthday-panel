@@ -1,4 +1,4 @@
-import type { InputHTMLAttributes, ReactNode, TextareaHTMLAttributes } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 const CONTROL_CLASSES =
@@ -43,13 +43,13 @@ export function Field({
 export function Input({
   className,
   ...props
-}: InputHTMLAttributes<HTMLInputElement>) {
+}: ComponentProps<"input">) {
   return <input {...props} className={cn(CONTROL_CLASSES, className)} />;
 }
 
 export function Textarea({
   className,
   ...props
-}: TextareaHTMLAttributes<HTMLTextAreaElement>) {
+}: ComponentProps<"textarea">) {
   return <textarea {...props} className={cn(CONTROL_CLASSES, "resize-none", className)} />;
 }
