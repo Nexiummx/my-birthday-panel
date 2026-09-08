@@ -19,7 +19,9 @@ export interface PanelContext {
 export async function requirePanelContext(): Promise<PanelContext> {
   const session = await getSession();
   if (!session) {
-    redirect("/admin/login");
+    // A la limpieza y no al acceso: si la cookie sigue puesta pero la sesión ya
+    // no existe, ir directo al acceso rebota contra el proxy sin fin.
+    redirect("/api/sesion/limpiar");
   }
   return { session, event: await getActiveEvent(session.sub) };
 }

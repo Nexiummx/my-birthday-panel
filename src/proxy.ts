@@ -17,6 +17,9 @@ const AUTH_ROUTES = [
  * petición. Es un filtro de tráfico, no la barrera de seguridad — esa está en
  * el layout del panel y en `requireSession()` de cada ruta de API, que sí
  * verifican la sesión contra la base.
+ *
+ * Esa diferencia —cookie presente, sesión inexistente— es la que provocaba un
+ * bucle de redirecciones. Ver `/api/sesion/limpiar`.
  */
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -34,7 +37,16 @@ export async function proxy(request: NextRequest) {
   }
 
   // Con sesión abierta, volver al acceso o al alta no tiene sentido.
-  if (hasSession && isAuthRoute && pathname !== "/admin/restablecer") {
+  //
+  // La excepción del final es un cortacircuitos. Si la cookie existe pero la
+  // sesión ya no está en la base —cuenta eliminada, sesión revocada—, esta
+  // redirección y la del layout se contestan la una a la otra para siempre. El
+  // servidor manda a /api/sesion/limpiar, que borra la cookie y vuelve aquí
+  // marcado; mientras venga esa marca no se rebota, así que el bucle termina
+  // aunque el borrado de la cookie hubiera fallado.
+  const cleaningUp = request.nextUrl.searchParams.get("sesion") === "expirada";
+
+  if (hasSession && isAuthRoute && pathname !== "/admin/restablecer" && !cleaningUp) {
     return NextResponse.redirect(new URL("/admin", request.url));
   }
 

@@ -27,6 +27,9 @@ export function LoginForm({ providers }: { providers: { google: boolean; faceboo
   });
 
   const next = searchParams.get("next");
+  // Llega desde /api/sesion/limpiar. Sin este aviso, a quien le cerraron la
+  // sesión le aparece el formulario sin más y parece que la app se reinició.
+  const expired = searchParams.get("sesion") === "expirada";
 
   const onSubmit = handleSubmit(async (values) => {
     setServerError(null);
@@ -49,6 +52,12 @@ export function LoginForm({ providers }: { providers: { google: boolean; faceboo
 
   return (
     <div className="space-y-5">
+      {expired && (
+        <p role="status" className="rounded-xl bg-gold-500/12 px-4 py-3 text-sm text-ink-700">
+          Tu sesión ya no es válida. Vuelve a entrar.
+        </p>
+      )}
+
       <SocialButtons providers={providers} next={next ?? undefined} />
 
       <form onSubmit={onSubmit} className="space-y-5" noValidate>

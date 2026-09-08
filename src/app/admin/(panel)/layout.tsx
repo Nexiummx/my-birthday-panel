@@ -11,7 +11,8 @@ import { isSuperAdmin } from "@/lib/services/accounts";
 export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
   const session = await getSession();
   if (!session) {
-    redirect("/admin/login");
+    // Igual que en requirePanelContext: la cookie huérfana se borra ahí.
+    redirect("/api/sesion/limpiar");
   }
 
   const [event, superAdmin] = await Promise.all([

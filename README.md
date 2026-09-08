@@ -413,6 +413,38 @@ de recuperación en local sin dar de alta un dominio.
 
 ---
 
+## La cookie huérfana
+
+Eliminar una cuenta borra sus filas de `sessions` en cascada, pero **la cookie
+sigue en el navegador de esa persona**. Eso provocaba un bucle de redirecciones
+infinito, porque las dos capas se contradicen:
+
+| | |
+| --- | --- |
+| `proxy.ts` | hay cookie → hay sesión → deja pasar a `/admin` |
+| el layout | la sesión no está en la base → a `/admin/login` |
+| `proxy.ts` | hay cookie y esto es una ruta de acceso → a `/admin` |
+
+El borde no puede romperlo: validar la cookie exigiría una consulta a la base en
+cada petición, que es justo lo que `proxy.ts` evita.
+
+Lo resuelve [`/api/sesion/limpiar`](src/app/api/sesion/limpiar/route.ts), un route
+handler —que sí puede escribir cookies— al que redirigen el layout y
+`requirePanelContext()` en cuanto la sesión no valida. Expira las cookies de
+Better Auth y devuelve a `/admin/login?sesion=expirada`.
+
+Hay **dos mecanismos, no uno**: además del borrado, el proxy no rebota una ruta
+de acceso mientras venga esa marca. Si el borrado fallara —un `path` o un
+dominio que no coincidan—, el bucle termina igual.
+
+No cuelga de `/api/auth/*` a propósito: ahí manda el catch-all de Better Auth y
+se comería la ruta.
+
+Cubre toda la familia, no solo la cuenta eliminada: sesión caducada, sesión
+revocada desde otro dispositivo, o base recreada en desarrollo.
+
+---
+
 ## Aislamiento entre cuentas
 
 Todo evento cuelga de una cuenta, y **cada consulta del panel cruza por el dueño
