@@ -23,9 +23,10 @@ export type RewindCard =
   | { kind: "count"; eyebrow: string; value: number; unit: string; note: string | null }
   | { kind: "names"; eyebrow: string; title: string; names: string[] }
   | { kind: "message"; author: string; text: string }
+  | { kind: "hero"; photo: PublicPhoto }
   | { kind: "photos"; photos: PublicPhoto[] }
   | { kind: "author"; name: string; count: number }
-  | { kind: "outro"; title: string; note: string; galleryHref: string };
+  | { kind: "outro"; title: string; note: string; galleryHref: string; shareHref: string; shareTitle: string };
 
 export interface RewindDeck {
   eventName: string;
@@ -123,6 +124,14 @@ export async function buildRewind(event: {
     });
 
     const publicPhotos = photos.map(toPublicPhoto);
+
+    // Una a pantalla completa antes de las rejillas. Se prefiere una con pie:
+    // si alguien se molestó en escribirlo, esa foto tiene algo que contar.
+    const hero = publicPhotos.find((photo) => photo.caption) ?? publicPhotos[0];
+    if (hero) {
+      cards.push({ kind: "hero", photo: hero });
+    }
+
     for (let index = 0; index < MAX_PHOTO_CARDS; index += 1) {
       const slice = publicPhotos.slice(index * PHOTOS_PER_CARD, (index + 1) * PHOTOS_PER_CARD);
       if (slice.length === 0) break;
@@ -142,6 +151,8 @@ export async function buildRewind(event: {
     title: "Hasta la próxima",
     note: stats.visible > 0 ? "Todas las fotos siguen aquí" : "Gracias por venir",
     galleryHref: `/f/${event.shareCode}`,
+    shareHref: `/r/${event.shareCode}`,
+    shareTitle: `El recuerdo de ${event.name}`,
   });
 
   return {

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { RewindPlayer } from "@/components/photos/RewindPlayer";
 import { getEventByShareCode } from "@/lib/services/photos";
 import { buildRewind } from "@/lib/services/rewind";
+import { getTheme } from "@/lib/themes";
 import { themeFontVariables } from "@/lib/theme-fonts";
 
 export const dynamic = "force-dynamic";
@@ -35,8 +36,11 @@ export default async function RewindPage({ params }: Props) {
 
   const deck = await buildRewind(event);
 
+  // data-theme aquí y no dentro del reproductor: tiene que envolver también a
+  // la escena del fondo, que lee los mismos tokens (--shade, los dorados) y las
+  // variables de tipografía que este bloque reasigna.
   return (
-    <div className={themeFontVariables}>
+    <div data-theme={getTheme(deck.theme).attribute} className={themeFontVariables}>
       <RewindPlayer deck={deck} />
     </div>
   );

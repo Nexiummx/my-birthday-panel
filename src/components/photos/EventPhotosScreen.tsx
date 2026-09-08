@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowLeft, CameraOff, Clapperboard } from "lucide-react";
 import { PhotoGallery } from "@/components/photos/PhotoGallery";
 import { PhotoUploader } from "@/components/photos/PhotoUploader";
+import { Scene } from "@/components/invitation/scenes/Scene";
 import type { PublicPhoto } from "@/lib/public-photo";
 import { getTheme } from "@/lib/themes";
 import { themeFontVariables } from "@/lib/theme-fonts";
@@ -38,11 +39,25 @@ export function EventPhotosScreen({
   const theme = getTheme(event.theme as EventThemeValue);
 
   return (
-    <div
-      data-theme={theme.attribute}
-      className={`${themeFontVariables} min-h-dvh bg-forest-800 text-cream-100`}
-    >
-      <main className="mx-auto flex max-w-3xl flex-col gap-10 px-5 py-12 sm:px-6 sm:py-16">
+    // La misma escena del tema que la invitación, no un fondo plano: quien
+    // llega aquí desde su invitación tiene que sentir que sigue en la misma
+    // pieza, y quien llega por el QR debe entender de qué fiesta se trata antes
+    // de leer una palabra.
+    <div data-theme={theme.attribute} className={`${themeFontVariables} text-cream-100`}>
+      <Scene theme={event.theme as EventThemeValue}>
+      {/* Penumbra sobre la escena. La invitación resuelve esto mismo bajo su
+          texto de bienvenida, y aquí hace falta igual: el elemento más
+          detallado del tema —la bola de espejos, la luna— cae justo donde va el
+          título. El color sale de --shade, así que cada tema pone el suyo. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            "linear-gradient(to bottom, var(--shade) 0%, color-mix(in srgb, var(--shade) 45%, transparent) 32%, color-mix(in srgb, var(--shade) 60%, transparent) 70%, var(--shade) 100%)",
+        }}
+      />
+      <main className="relative mx-auto flex max-w-3xl flex-col gap-10 px-5 py-12 sm:px-6 sm:py-16">
         <header className="text-center">
           {slug && (
             <Link
@@ -68,7 +83,7 @@ export function EventPhotosScreen({
             superficie, y no dentro de Field, que en el panel está bien. */}
         <section
           aria-label="Subir fotos"
-          className="rounded-3xl border border-cream-100/15 bg-cream-100/8 p-5 backdrop-blur-sm sm:p-6 [&_label]:text-cream-100/75"
+          className="rounded-3xl border border-cream-100/20 bg-black/35 p-5 shadow-[0_24px_70px_-30px_rgba(0,0,0,0.9)] backdrop-blur-md sm:p-6 [&_label]:text-cream-100/75"
         >
           {event.photosEnabled ? (
             <>
@@ -110,6 +125,7 @@ export function EventPhotosScreen({
           </section>
         )}
       </main>
+      </Scene>
     </div>
   );
 }

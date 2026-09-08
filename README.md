@@ -530,11 +530,30 @@ la animación.
 Las pantallas sin datos no se generan: un evento sin fotos no enseña "0 fotos",
 simplemente no tiene esa pantalla.
 
-En el reproductor, **una sola línea de tiempo de GSAP por pantalla** gobierna la
-entrada de los elementos, la barra de progreso y el salto a la siguiente.
-Tenerlo todo junto es lo que hace que pausar funcione de verdad —se pausa una
-cosa, no tres que se desincronizan— y que la barra siempre coincida con lo que
-se ve.
+El fondo es **la escena del propio tema**, la misma que la invitación: el
+recuerdo tiene que parecer la segunda mitad de la misma pieza, no otra app. Va
+con una penumbra encima que sale de `--shade`, porque el elemento más detallado
+de cada tema —la bola de espejos, la luna— cae justo donde va el título.
+
+En el reproductor, **una sola línea de tiempo de GSAP por pantalla** gobierna
+cuatro cosas: la transición de entrada, la cascada de los elementos, la deriva
+de las fotos y la barra de progreso; al terminar, salta. Tenerlo todo junto es
+lo que hace que pausar funcione de verdad —se pausa una cosa, no cuatro que se
+desincronizan— y que la barra siempre coincida con lo que se ve.
+
+Detalles que separan esto de una galería con botones:
+
+- **Ken Burns**: la foto deriva despacio mientras dura la pantalla. Una foto
+  quieta a pantalla completa se ve muerta.
+- **Precarga** de las fotos de las dos pantallas siguientes. Sin ella, la foto
+  grande aparece a medio cargar justo cuando le toca salir.
+- **Gestos**: mantener pulsado pausa, arrastrar de lado cambia, tocar avanza o
+  retrocede según la mitad. Un solo puntero resuelve los tres; separarlo en
+  botones haría imposible el arrastre, así que los botones de abajo quedan como
+  los destinos reales para teclado y lectores de pantalla.
+- Una pantalla **a sangre** con la mejor foto —se prefiere una con pie: si
+  alguien se molestó en escribirlo, esa foto tiene algo que contar.
+- **Compartir** al final: hoja nativa en móvil, portapapeles en escritorio.
 
 El tipo grande se mide en `vh` y no en `vw`: estas pantallas ocupan el viewport
 entero y en un móvil en horizontal el texto no cabía.

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Images, Quote } from "lucide-react";
+import { ShareButton } from "@/components/photos/ShareButton";
 import type { RewindCard } from "@/lib/services/rewind";
 
 /**
@@ -8,6 +9,9 @@ import type { RewindCard } from "@/lib/services/rewind";
  *
  *   .rw-in     entra en cascada al mostrarse la pantalla.
  *   .rw-depth  se mueve con el parallax del puntero.
+ *   .rw-kb     recibe el Ken Burns: una deriva lenta mientras dura la pantalla.
+ *              Una foto quieta a pantalla completa se ve muerta; moviéndose
+ *              despacio parece grabada.
  *
  * Separar así el qué del cómo permite añadir una pantalla nueva sin tocar la
  * línea de tiempo de GSAP.
@@ -94,6 +98,35 @@ export function RewindCardView({ card }: { card: RewindCard }) {
         </Frame>
       );
 
+    case "hero":
+      return (
+        <div className="relative h-full w-full overflow-hidden">
+          {/* eslint-disable-next-line @next/next/no-img-element -- ver PhotoGallery */}
+          <img
+            src={card.photo.url}
+            alt={card.photo.caption ?? `Foto de ${card.photo.authorName}`}
+            className="rw-kb absolute inset-0 size-full object-cover"
+            decoding="async"
+          />
+          {/* Degradado abajo: sin él el texto cae sobre lo que traiga la foto,
+              y a veces es ilegible. */}
+          <div
+            aria-hidden="true"
+            className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-black/45"
+          />
+          <div className="absolute inset-x-0 bottom-0 p-7 text-left sm:p-10">
+            {card.photo.caption && (
+              <p className="rw-in max-w-lg font-serif text-[clamp(1.4rem,4.5vh,2.25rem)] leading-snug">
+                “{card.photo.caption}”
+              </p>
+            )}
+            <p className="rw-in mt-3 font-sans text-[11px] uppercase tracking-[0.28em] opacity-75">
+              {card.photo.authorName}
+            </p>
+          </div>
+        </div>
+      );
+
     case "photos":
       return (
         <Frame>
@@ -118,7 +151,7 @@ export function RewindCardView({ card }: { card: RewindCard }) {
                 <img
                   src={photo.url}
                   alt={photo.caption ?? `Foto de ${photo.authorName}`}
-                  className="aspect-[4/5] w-full object-cover"
+                  className="rw-kb aspect-[4/5] w-full object-cover"
                   loading={index < 2 ? "eager" : "lazy"}
                   decoding="async"
                 />
@@ -158,13 +191,16 @@ export function RewindCardView({ card }: { card: RewindCard }) {
           <p className="rw-in mt-4 font-sans text-sm uppercase tracking-[0.22em] opacity-70">
             {card.note}
           </p>
-          <Link
-            href={card.galleryHref}
-            className="rw-in mt-9 inline-flex items-center gap-2 rounded-full border border-cream-100/30 px-6 py-3 font-sans text-xs uppercase tracking-[0.2em] transition-colors hover:border-gold-400 hover:text-gold-400"
-          >
-            <Images className="size-4" aria-hidden="true" />
-            Ver todas las fotos
-          </Link>
+          <div className="rw-in mt-9 flex flex-wrap items-center justify-center gap-3">
+            <Link
+              href={card.galleryHref}
+              className="inline-flex items-center gap-2 rounded-full border border-cream-100/30 px-6 py-3 font-sans text-xs uppercase tracking-[0.2em] transition-colors hover:border-gold-400 hover:text-gold-400"
+            >
+              <Images className="size-4" aria-hidden="true" />
+              Ver todas las fotos
+            </Link>
+            <ShareButton url={card.shareHref} title={card.shareTitle} />
+          </div>
         </Frame>
       );
   }
