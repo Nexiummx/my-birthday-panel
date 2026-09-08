@@ -1,4 +1,5 @@
-import type { InvitationStatusValue } from "@/lib/validations";
+import type { EventThemeValue, InvitationStatusValue } from "@/lib/validations";
+import type { ThemeCopy } from "@/lib/themes";
 
 /** Datos del evento ya formateados para el cliente. */
 export interface PublicEvent {
@@ -15,6 +16,10 @@ export interface PublicEvent {
   dressCode: string | null;
   dressCodeUrl: string | null;
   invitationImage: string | null;
+  /** Estética con la que se renderiza la experiencia. */
+  theme: EventThemeValue;
+  /** Textos de la portada, ya mezclados con los del tema. */
+  copy: ThemeCopy;
 }
 
 /** DTO serializable que recibe la experiencia pública. */

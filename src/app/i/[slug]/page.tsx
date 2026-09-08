@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { InvitationExperience } from "@/components/invitation/InvitationExperience";
 import { toPublicInvitation } from "@/lib/public-invitation";
+import { getTheme } from "@/lib/themes";
+import { themeFontVariables } from "./fonts";
 import { getPublicInvitation } from "@/lib/services/invitations";
 import { formatInvitationDate } from "@/lib/utils";
 
@@ -30,7 +32,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       title,
       description,
       url: `/i/${slug}`,
-      siteName: "Bosque Encantado",
+      siteName: invitation.event.name,
       locale: "es_MX",
       type: "website",
     },
@@ -47,5 +49,15 @@ export default async function InvitationPage({ params }: Props) {
     notFound();
   }
 
-  return <InvitationExperience invitation={toPublicInvitation(invitation)} />;
+  const publicInvitation = toPublicInvitation(invitation);
+  const theme = getTheme(publicInvitation.event.theme);
+
+  // data-theme activa la paleta del tema y las clases de fuente exponen las
+  // variables que ese bloque reasigna. Envolver aquí, y no en el layout raíz,
+  // deja el panel con la paleta por defecto.
+  return (
+    <div data-theme={theme.attribute} className={themeFontVariables}>
+      <InvitationExperience invitation={publicInvitation} />
+    </div>
+  );
 }

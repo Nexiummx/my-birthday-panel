@@ -97,3 +97,59 @@ export const rsvpSchema = rsvpFields
     path: [...requiresGuests.path],
   });
 export type RsvpInput = z.infer<typeof rsvpSchema>;
+
+/**
+ * Temas disponibles. Duplica el enum EventTheme de Prisma a propósito, igual
+ * que INVITATION_STATUS: así los componentes de cliente no arrastran el cliente
+ * generado. Si se agrega un tema, hay que tocar ambos lados.
+ */
+export const EVENT_THEMES = ["BOSQUE", "VAQUEROS", "BARBIE", "DISCO"] as const;
+export type EventThemeValue = (typeof EVENT_THEMES)[number];
+
+/** Campo de texto opcional: se guarda NULL cuando llega vacío. */
+const optionalText = (max: number, message: string) =>
+  z.string().trim().max(max, message).optional().or(z.literal(""));
+
+/** Enlace opcional. Se valida como URL solo si trae algo. */
+const optionalUrl = z
+  .union([z.url("Debe ser un enlace válido (https://…)"), z.literal("")])
+  .optional();
+
+/** Alta de evento desde el panel. */
+export const createEventSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(2, "El nombre debe tener al menos 2 caracteres")
+    .max(120, "El nombre es demasiado largo"),
+  date: z.coerce.date<Date>("Fecha inválida"),
+  time: z
+    .string()
+    .trim()
+    .min(1, "Indica la hora")
+    .max(40, "La hora es demasiado larga"),
+  location: z
+    .string()
+    .trim()
+    .min(3, "Indica el lugar")
+    .max(400, "La dirección es demasiado larga"),
+  locationUrl: optionalUrl,
+  dressCode: optionalText(120, "El código de vestimenta es demasiado largo"),
+  dressCodeUrl: optionalUrl,
+  description: optionalText(400, "La descripción no puede superar 400 caracteres"),
+  invitationImage: optionalUrl,
+  theme: z.enum(EVENT_THEMES),
+  sealedEyebrow: optionalText(60, "Máximo 60 caracteres"),
+  sealedHeadline: optionalText(140, "Máximo 140 caracteres"),
+  sealedCta: optionalText(40, "Máximo 40 caracteres"),
+});
+export type CreateEventInput = z.infer<typeof createEventSchema>;
+
+/** Edición de evento: todos los campos opcionales, pero al menos uno. */
+export const updateEventSchema = createEventSchema
+  .partial()
+  .extend({ archived: z.boolean().optional() })
+  .refine((value) => Object.keys(value).length > 0, {
+    message: "No hay cambios que guardar",
+  });
+export type UpdateEventInput = z.infer<typeof updateEventSchema>;

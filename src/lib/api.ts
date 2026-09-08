@@ -2,7 +2,7 @@ import "server-only";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { UnauthorizedError } from "@/lib/auth";
-import { ServiceError } from "@/lib/services/invitations";
+import { ServiceError } from "@/lib/services/errors";
 
 /** Respuesta correcta uniforme: { data }. */
 export function ok<T>(data: T, status = 200) {

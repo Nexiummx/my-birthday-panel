@@ -1,4 +1,4 @@
-// Esquema de datos — Invitaciones digitales "Bosque Encantado"
+// Esquema de datos — plataforma de invitaciones digitales
 // Docs: https://pris.ly/d/prisma-schema
 
 generator client {
@@ -20,9 +20,40 @@ enum InvitationStatus {
   DECLINED
 }
 
+/// Estética de la experiencia pública. Cada valor tiene su paleta, sus
+/// tipografías y su escena en src/lib/themes.ts.
+enum EventTheme {
+  BOSQUE
+  VAQUEROS
+  BARBIE
+  DISCO
+}
+
+/// Cuenta del panel. Es el titular: todo evento cuelga de una cuenta y las
+/// consultas del panel se filtran siempre por ella.
+model AdminUser {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String?
+  /// Cuántos eventos sin archivar puede tener a la vez. Lo sube el superadmin
+  /// cuando el cliente paga; el alta del evento que lo excede se rechaza.
+  eventQuota   Int      @default(1)
+  /// Solo las cuentas internas: pueden dar de alta cuentas y mover cupos.
+  isSuperAdmin Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  events Event[]
+
+  @@map("admin_users")
+}
+
 /// Evento al que pertenecen las invitaciones.
 model Event {
-  id              String   @id @default(cuid())
+  id      String @id @default(cuid())
+  ownerId String
+
   name            String
   date            DateTime
   time            String
@@ -32,11 +63,25 @@ model Event {
   dressCodeUrl    String?
   description     String?
   invitationImage String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
 
+  theme EventTheme @default(BOSQUE)
+
+  /// Textos de la pantalla de bienvenida (la que se ve antes de abrir la
+  /// invitación). NULL = se usa el texto por defecto del tema.
+  sealedEyebrow  String?
+  sealedHeadline String?
+  sealedCta      String?
+
+  /// Un evento archivado deja de contar contra el cupo de la cuenta.
+  archivedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  owner       AdminUser    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   invitations Invitation[]
 
+  @@index([ownerId])
   @@map("events")
 }
 
@@ -75,15 +120,4 @@ model Rsvp {
   invitation Invitation @relation(fields: [invitationId], references: [id], onDelete: Cascade)
 
   @@map("rsvps")
-}
-
-/// Usuario del panel administrativo.
-model AdminUser {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  passwordHash String
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  @@map("admin_users")
 }

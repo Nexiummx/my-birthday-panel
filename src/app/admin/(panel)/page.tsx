@@ -3,7 +3,7 @@ import Link from "next/link";
 import { CalendarCheck, Clock3, Mail, TrendingUp, UserX, Users } from "lucide-react";
 import { StatsCard } from "@/components/admin/StatsCard";
 import { getDashboardStats } from "@/lib/services/stats";
-import { getDefaultEvent } from "@/lib/services/invitations";
+import { requirePanelContext } from "@/lib/panel";
 import { formatLongDate } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +14,8 @@ export const metadata: Metadata = {
 };
 
 export default async function DashboardPage() {
-  const [stats, event] = await Promise.all([getDashboardStats(), getDefaultEvent()]);
+  const { session, event } = await requirePanelContext();
+  const stats = await getDashboardStats(session.sub, event?.id ?? null);
 
   return (
     <div className="space-y-8">

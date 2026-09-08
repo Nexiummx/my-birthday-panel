@@ -1,19 +1,9 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { uniqueSlug } from "@/lib/slug";
+import { ServiceError } from "@/lib/services/errors";
 import type { CreateInvitationInput, UpdateInvitationInput } from "@/lib/validations";
 import type { InvitationStatus } from "@/generated/prisma/enums";
-
-/** Error de negocio con mensaje seguro para mostrar al usuario. */
-export class ServiceError extends Error {
-  constructor(
-    message: string,
-    readonly status: number = 400
-  ) {
-    super(message);
-    this.name = "ServiceError";
-  }
-}
 
 const invitationWithRsvp = {
   rsvp: true,
@@ -22,15 +12,27 @@ const invitationWithRsvp = {
 
 export type InvitationRecord = Awaited<ReturnType<typeof listInvitations>>[number];
 
-export async function listInvitations() {
+/**
+ * Invitaciones de un evento.
+ *
+ * El filtro por `event.ownerId` no es redundante: sin él bastaría con conocer
+ * el id de un evento ajeno para leer su lista de invitados. Toda consulta del
+ * panel pasa por el dueño de la sesión, nunca solo por el id que llega del
+ * cliente.
+ */
+export async function listInvitations(ownerId: string, eventId: string) {
   return prisma.invitation.findMany({
+    where: { eventId, event: { ownerId } },
     orderBy: { createdAt: "desc" },
     include: invitationWithRsvp,
   });
 }
 
-export async function getInvitationById(id: string) {
-  return prisma.invitation.findUnique({ where: { id }, include: invitationWithRsvp });
+export async function getInvitationById(id: string, ownerId: string) {
+  return prisma.invitation.findFirst({
+    where: { id, event: { ownerId } },
+    include: invitationWithRsvp,
+  });
 }
 
 /** Invitación pública con los datos del evento, para /i/[slug]. */
@@ -41,21 +43,18 @@ export async function getPublicInvitation(slug: string) {
   });
 }
 
-/** Evento por defecto: el MVP gestiona un evento a la vez. */
-export async function getDefaultEvent() {
-  return prisma.event.findFirst({ orderBy: { createdAt: "asc" } });
-}
-
-export async function createInvitation(input: CreateInvitationInput) {
-  const eventId = input.eventId ?? (await getDefaultEvent())?.id;
-
-  if (!eventId) {
-    throw new ServiceError(
-      "No existe ningún evento. Ejecuta `npm run db:seed` para crear el evento inicial.",
-      409
-    );
+export async function createInvitation(
+  ownerId: string,
+  eventId: string,
+  input: CreateInvitationInput
+) {
+  const event = await prisma.event.findFirst({ where: { id: eventId, ownerId } });
+  if (!event) {
+    throw new ServiceError("El evento no existe", 404);
   }
 
+  // El slug es único en toda la plataforma porque /i/[slug] no lleva prefijo de
+  // cuenta: la comparación tiene que ser global, no por evento.
   const existing = await prisma.invitation.findMany({ select: { slug: true } });
   const slug = uniqueSlug(input.guestName, existing.map((row) => row.slug));
 
@@ -71,8 +70,14 @@ export async function createInvitation(input: CreateInvitationInput) {
   });
 }
 
-export async function updateInvitation(id: string, input: UpdateInvitationInput) {
-  const invitation = await prisma.invitation.findUnique({ where: { id } });
+export async function updateInvitation(
+  id: string,
+  ownerId: string,
+  input: UpdateInvitationInput
+) {
+  const invitation = await prisma.invitation.findFirst({
+    where: { id, event: { ownerId } },
+  });
   if (!invitation) {
     throw new ServiceError("La invitación no existe", 404);
   }
@@ -98,8 +103,10 @@ export async function updateInvitation(id: string, input: UpdateInvitationInput)
   });
 }
 
-export async function deleteInvitation(id: string) {
-  const invitation = await prisma.invitation.findUnique({ where: { id } });
+export async function deleteInvitation(id: string, ownerId: string) {
+  const invitation = await prisma.invitation.findFirst({
+    where: { id, event: { ownerId } },
+  });
   if (!invitation) {
     throw new ServiceError("La invitación no existe", 404);
   }

@@ -1,6 +1,7 @@
 import "server-only";
 import type { PublicInvitation } from "@/lib/types";
-import type { InvitationStatusValue } from "@/lib/validations";
+import type { EventThemeValue, InvitationStatusValue } from "@/lib/validations";
+import { resolveCopy } from "@/lib/themes";
 import { formatInvitationDate } from "@/lib/utils";
 import { getPublicInvitation } from "@/lib/services/invitations";
 
@@ -14,6 +15,7 @@ type InvitationWithEvent = NonNullable<Awaited<ReturnType<typeof getPublicInvita
 export function toPublicInvitation(invitation: InvitationWithEvent): PublicInvitation {
   const { event } = invitation;
   const [title, highlight] = splitEventName(event.name);
+  const theme = event.theme as EventThemeValue;
 
   return {
     slug: invitation.slug,
@@ -40,6 +42,13 @@ export function toPublicInvitation(invitation: InvitationWithEvent): PublicInvit
       dressCode: event.dressCode,
       dressCodeUrl: event.dressCodeUrl,
       invitationImage: event.invitationImage,
+      theme,
+      // Lo que el anfitrión dejó vacío cae al texto por defecto del tema.
+      copy: resolveCopy(theme, {
+        eyebrow: event.sealedEyebrow,
+        headline: event.sealedHeadline,
+        cta: event.sealedCta,
+      }),
     },
   };
 }

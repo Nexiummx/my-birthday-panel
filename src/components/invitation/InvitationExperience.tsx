@@ -3,10 +3,10 @@
 import { useCallback, useRef, useState } from "react";
 import gsap from "gsap";
 import { Sparkles } from "lucide-react";
-import { ForestScene } from "@/components/invitation/ForestScene";
-import { ForegroundFauna } from "@/components/invitation/ForegroundFauna";
+import { Scene, SceneForeground } from "@/components/invitation/scenes/Scene";
 import { InvitationCard } from "@/components/invitation/InvitationCard";
-import { CURTAIN_BRANCH_CLASS, OpeningCurtain } from "@/components/invitation/OpeningCurtain";
+import { CURTAIN_BRANCH_CLASS } from "@/components/invitation/OpeningCurtain";
+import { ThemeCurtain } from "@/components/invitation/scenes/DrapeCurtain";
 import { RSVPModal } from "@/components/invitation/RSVPModal";
 import { Button } from "@/components/ui/Button";
 import { usePrefersReducedMotion, useScrollLock } from "@/lib/hooks";
@@ -93,8 +93,10 @@ export function InvitationExperience({ invitation }: { invitation: PublicInvitat
 
   const revealed = phase === "revealed";
 
+  const { theme, copy } = invitation.event;
+
   return (
-    <ForestScene>
+    <Scene theme={theme}>
       <div ref={rootRef} className="relative min-h-dvh w-full">
         <div className="flex min-h-dvh items-center justify-center px-4 py-10 sm:px-6 sm:py-16">
           <div
@@ -119,51 +121,52 @@ export function InvitationExperience({ invitation }: { invitation: PublicInvitat
           </div>
         </div>
 
-        {phase !== "revealed" && <OpeningCurtain leftRef={leftRef} rightRef={rightRef} />}
+        {phase !== "revealed" && (
+          <ThemeCurtain theme={theme} leftRef={leftRef} rightRef={rightRef} />
+        )}
 
-        {/* Viñeta cinematográfica sobre toda la escena, incluida la vegetación:
-            oscurece las esquinas y concentra la mirada en el centro. */}
+        {/* Viñeta cinematográfica sobre toda la escena: oscurece las esquinas y
+            concentra la mirada en el centro. El color lo pone el tema. */}
         <div
           aria-hidden="true"
           className="pointer-events-none fixed inset-0 z-40"
           style={{
             background:
-              "radial-gradient(78% 62% at 50% 46%, transparent 42%, rgba(6, 11, 5, 0.68) 100%)",
+              "radial-gradient(78% 62% at 50% 46%, transparent 42%, var(--veil) 100%)",
           }}
         />
 
-        <ForegroundFauna />
+        <SceneForeground theme={theme} />
 
         {phase === "sealed" && (
           <div
             ref={sealRef}
             className="absolute inset-0 z-30 flex flex-col items-center justify-center px-6 text-center"
           >
-            {/* Penumbra bajo el mensaje (para que la vegetación no compita con
-                el texto) y, sobre ella, la luz cálida que escapa del claro. */}
+            {/* Penumbra bajo el mensaje (para que la escena no compita con el
+                texto) y, sobre ella, la luz que lo realza. */}
             <div
               aria-hidden="true"
               className="pointer-events-none absolute inset-0"
               style={{
                 background:
-                  "radial-gradient(44% 30% at 50% 50%, rgba(6, 12, 5, 0.88) 0%, rgba(6, 12, 5, 0.6) 48%, transparent 78%)",
+                  "radial-gradient(44% 30% at 50% 50%, var(--shade) 0%, color-mix(in srgb, var(--shade) 68%, transparent) 48%, transparent 78%)",
               }}
             />
             <div
               aria-hidden="true"
               className="pointer-events-none absolute inset-0 mix-blend-screen"
               style={{
-                background:
-                  "radial-gradient(38% 26% at 50% 50%, rgba(217, 192, 137, 0.22) 0%, transparent 72%)",
+                background: "radial-gradient(38% 26% at 50% 50%, var(--glow) 0%, transparent 72%)",
               }}
             />
             <div className="relative flex flex-col items-center">
             <p className="animate-glow-pulse font-sans text-[10px] uppercase tracking-[0.42em] text-gold-300/80">
-              Estás invitada
+              {copy.eyebrow}
             </p>
 
             <h1 className="mt-4 max-w-[16ch] font-serif text-3xl font-light leading-snug text-cream-100 drop-shadow-[0_2px_18px_rgba(0,0,0,0.55)] sm:text-4xl">
-              Un espacio guardado solo para ti en este cuento
+              {copy.headline}
             </h1>
 
             <Button
@@ -173,7 +176,7 @@ export function InvitationExperience({ invitation }: { invitation: PublicInvitat
               icon={<Sparkles className="size-4" aria-hidden="true" />}
               className="mt-6 tracking-[0.16em] uppercase text-xs"
             >
-              Haz clic para descubrir
+              {copy.cta}
             </Button>
 
             <p className="mt-4 font-sans text-xs tracking-[0.2em] text-cream-200/70">
@@ -190,7 +193,7 @@ export function InvitationExperience({ invitation }: { invitation: PublicInvitat
         invitation={{ ...invitation, rsvp }}
         onSuccess={setRsvp}
       />
-    </ForestScene>
+    </Scene>
   );
 }
 

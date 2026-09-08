@@ -45,6 +45,16 @@
   --font-hand: var(--font-caveat), "Bradley Hand", cursive;
 
   --ease-forest: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* Velos de la portada. Se declaran aquí y cada tema los reescribe: son
+     colores con alfa, no tokens de paleta, así que no caben en las familias
+     de arriba.
+       --veil   viñeta cinematográfica sobre toda la escena
+       --shade  penumbra bajo el texto de bienvenida
+       --glow   luz cálida que lo realza */
+  --veil: rgba(6, 11, 5, 0.68);
+  --shade: rgba(6, 12, 5, 0.88);
+  --glow: rgba(217, 192, 137, 0.22);
 }
 
 html {
@@ -73,7 +83,7 @@ body {
 .paper-texture {
   background-image:
     radial-gradient(at 18% 12%, rgb(255 255 255 / 0.85) 0%, transparent 55%),
-    radial-gradient(at 82% 88%, rgb(239 228 205 / 0.9) 0%, transparent 60%),
+    radial-gradient(at 82% 88%, color-mix(in srgb, var(--color-cream-200) 90%, transparent) 0%, transparent 60%),
     linear-gradient(160deg, var(--color-cream-50) 0%, var(--color-cream-100) 48%, var(--color-cream-200) 100%);
 }
 
@@ -231,4 +241,192 @@ body {
     transition-duration: 0.001ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   TEMAS
+   Los tokens de arriba son la paleta por defecto (Bosque Encantado) y, a la
+   vez, la CAPA SEMÁNTICA que todos los temas reescriben. Cada familia tiene un
+   rol fijo; el nombre viene del tema original, el significado es el que manda:
+
+     forest-950..700  fondo de la escena, de lo más oscuro a lo menos
+     olive-700..500   acento medio · estado "confirmado"
+     sage-400..200    detalles claros de la escena
+     cream-50..300    papel de la lámina y superficies
+     blush-200..500   acento suave · estado "no asistirá"
+     gold-300..600    acento metálico · filetes y realces
+     ink-900..500     texto, de más a menos contraste
+
+   Solo la experiencia pública lleva data-theme, así que el panel se queda
+   siempre con la paleta por defecto.
+   ───────────────────────────────────────────────────────────── */
+
+/* ── Vaqueros · blanco y negro ─────────────────────────────────
+   Fotografía del oeste: humo, cuero y hueso. Sin dorado; el metal es peltre. */
+[data-theme="vaqueros"] {
+  --veil: rgba(12, 11, 9, 0.74);
+  --shade: rgba(12, 11, 9, 0.9);
+  --glow: rgba(226, 214, 190, 0.2);
+
+  --color-forest-950: #0c0b09;
+  --color-forest-900: #14120f;
+  --color-forest-800: #1f1c17;
+  --color-forest-700: #2b2720;
+
+  --color-olive-700: #4a4438;
+  --color-olive-600: #5f5849;
+  --color-olive-500: #766d5b;
+
+  --color-sage-400: #9c937e;
+  --color-sage-300: #b8af99;
+  --color-sage-200: #d1c9b5;
+
+  --color-cream-50: #f6f2e8;
+  --color-cream-100: #ece5d6;
+  --color-cream-200: #ddd3bf;
+  --color-cream-300: #c7bca4;
+
+  --color-blush-200: #d8cabb;
+  --color-blush-300: #bfae9b;
+  --color-blush-400: #a08d78;
+  --color-blush-500: #83705c;
+
+  --color-gold-300: #c3b79d;
+  --color-gold-400: #a89b80;
+  --color-gold-500: #8d8067;
+  --color-gold-600: #6f6450;
+
+  --color-ink-900: #1a1714;
+  --color-ink-700: #3d372e;
+  --color-ink-500: #6b6355;
+
+  --font-display-script: var(--font-rye), ui-serif, Georgia, serif;
+  --font-script: var(--font-rye), ui-serif, Georgia, serif;
+}
+
+/* ── Barbie · pop rosa ─────────────────────────────────────────
+   Fucsia saturado sobre rosa chicle; el "papel" es casi blanco rosado para que
+   el texto siga leyéndose. */
+[data-theme="barbie"] {
+  --veil: rgba(117, 22, 72, 0.44);
+  --shade: rgba(117, 22, 72, 0.64);
+  --glow: rgba(255, 255, 255, 0.28);
+
+  --color-forest-950: #3d0a26;
+  --color-forest-900: #571036;
+  --color-forest-800: #751648;
+  --color-forest-700: #931c5a;
+
+  --color-olive-700: #b81a74;
+  --color-olive-600: #e0218a;
+  --color-olive-500: #ec4b9f;
+
+  --color-sage-400: #ff8ec4;
+  --color-sage-300: #ffb6d9;
+  --color-sage-200: #ffd4e8;
+
+  --color-cream-50: #fff6fa;
+  --color-cream-100: #ffe9f3;
+  --color-cream-200: #ffd7e9;
+  --color-cream-300: #ffbcd9;
+
+  --color-blush-200: #ffd0e4;
+  --color-blush-300: #ff9dc6;
+  --color-blush-400: #f56aa8;
+  --color-blush-500: #d92e83;
+
+  --color-gold-300: #ffe08a;
+  --color-gold-400: #f7c948;
+  --color-gold-500: #dba81f;
+  --color-gold-600: #a87d12;
+
+  --color-ink-900: #460d2c;
+  --color-ink-700: #7a2350;
+  --color-ink-500: #a3567e;
+
+  --font-display-script: var(--font-pacifico), ui-rounded, "Trebuchet MS", cursive;
+  --font-script: var(--font-pacifico), ui-rounded, "Trebuchet MS", cursive;
+  --font-serif: var(--font-poppins), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* ── Disco · noche de brillos ──────────────────────────────────
+   Negro azulado, oro y magenta. El papel es champán, no blanco: la lámina
+   tiene que sentirse dorada incluso apagada. */
+[data-theme="disco"] {
+  --veil: rgba(8, 6, 14, 0.78);
+  --shade: rgba(8, 6, 14, 0.9);
+  --glow: rgba(240, 217, 138, 0.24);
+
+  --color-forest-950: #08060e;
+  --color-forest-900: #0d0a16;
+  --color-forest-800: #161022;
+  --color-forest-700: #211a31;
+
+  --color-olive-700: #a3134c;
+  --color-olive-600: #c2185b;
+  --color-olive-500: #d94a80;
+
+  --color-sage-400: #b9a6e0;
+  --color-sage-300: #cdbfe9;
+  --color-sage-200: #e2d9f4;
+
+  --color-cream-50: #faf6ec;
+  --color-cream-100: #f2e9d6;
+  --color-cream-200: #e5d7ba;
+  --color-cream-300: #d1bd97;
+
+  --color-blush-200: #f2d3e2;
+  --color-blush-300: #e0a8c4;
+  --color-blush-400: #c97ba2;
+  --color-blush-500: #a84f7c;
+
+  --color-gold-300: #f4e3a8;
+  --color-gold-400: #e0c66d;
+  --color-gold-500: #c9a227;
+  --color-gold-600: #9d7c17;
+
+  --color-ink-900: #171124;
+  --color-ink-700: #3a3151;
+  --color-ink-500: #6b6288;
+
+  --font-display-script: var(--font-cinzel), ui-serif, Georgia, serif;
+  --font-serif: var(--font-cinzel), ui-serif, Georgia, serif;
+}
+
+/* Destellos del tema Disco: un brillo que nace y muere en el sitio. */
+@keyframes sparkle-twinkle {
+  0%,
+  100% {
+    opacity: 0;
+    transform: scale(0.4) rotate(0deg);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1) rotate(45deg);
+  }
+}
+
+.animate-sparkle {
+  animation: sparkle-twinkle 3.2s ease-in-out infinite;
+  transform-origin: center;
+}
+
+/* Polvo en suspensión del tema Vaqueros: deriva lateral muy lenta. */
+@keyframes dust-drift {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0);
+  }
+  15%,
+  70% {
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(60px, -40px, 0);
+  }
+}
+
+.animate-dust {
+  animation: dust-drift 14s linear infinite;
 }

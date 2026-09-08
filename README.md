@@ -1,14 +1,18 @@
-# Invitaciones digitales · Bosque Encantado
+# Invitaciones digitales
 
-Aplicación web para enviar invitaciones digitales individuales, cada una con su
-propio enlace, una apertura cinematográfica (la vegetación se abre desde el
-centro como dos cortinas) y confirmación de asistencia.
+Plataforma para enviar invitaciones digitales individuales, cada una con su
+propio enlace, una apertura cinematográfica (el telón se abre desde el centro) y
+confirmación de asistencia.
 
-Incluye un panel administrativo para crear invitaciones, copiar enlaces y seguir
-las confirmaciones en tiempo real.
+Cada cuenta gestiona sus propios eventos y cada evento elige uno de **cuatro
+temas** —Bosque Encantado, Vaqueros, Barbie y Noche de Brillos—, que cambian la
+paleta, las tipografías, la escena de fondo y los textos de bienvenida.
 
 - **Invitación pública:** `/i/[slug]` — p. ej. `/i/mariana-lopez`
-- **Panel:** `/admin/login`, `/admin`, `/admin/invitaciones`, `/admin/confirmaciones`
+- **Panel:** `/admin/login`, `/admin`, `/admin/invitaciones`, `/admin/confirmaciones`, `/admin/evento`
+
+No hay registro público: las cuentas y su cupo de eventos los da de alta el
+equipo con [`scripts/accounts.ts`](scripts/accounts.ts).
 
 ---
 
@@ -21,23 +25,24 @@ las confirmaciones en tiempo real.
 | Estilos | Tailwind CSS v4 |
 | Animación | GSAP (solo la apertura) + CSS y canvas para el resto |
 | ORM | Prisma 7 con driver adapter de `node-postgres` |
-| Base de datos | PostgreSQL (Supabase) |
+| Base de datos | PostgreSQL — Supabase en producción, Docker en local |
 | Validación | Zod (mismos esquemas en cliente y servidor) |
 | Formularios | React Hook Form |
 | Iconos | Lucide React |
 | Sesión admin | JWT HS256 en cookie httpOnly (`jose`) + bcrypt |
 
-Todo vive en un único proyecto Next.js: no hay backend separado, ni Docker, ni
-Redux, ni GraphQL.
+Todo vive en un único proyecto Next.js: no hay backend separado, ni Redux, ni
+GraphQL. Docker se usa solo para levantar la base de datos de desarrollo.
 
 ---
 
 ## Instalación
 
 ```bash
-npm install          # `postinstall` ejecuta `prisma generate`
-cp .env.example .env # y completa las variables
-npm run setup        # migraciones + seed
+npm install                # `postinstall` ejecuta `prisma generate`
+cp .env.example .env.local # base local: ver "Variables de entorno"
+docker compose up -d       # PostgreSQL 17 en el puerto 5433
+npm run setup              # migraciones + seed
 npm run dev
 ```
 
@@ -48,7 +53,23 @@ Abre <http://localhost:3000/i/mariana-lopez> para ver la experiencia completa y
 
 ## Variables de entorno
 
-Copia `.env.example` a `.env`:
+### `.env.local` gana sobre `.env`
+
+[`scripts/env.ts`](scripts/env.ts) carga `.env.local` **antes** que `.env`, y
+Next.js aplica la misma precedencia. Mientras exista un `.env.local` apuntando a
+Docker, ningún `prisma migrate` puede alcanzar Supabase por descuido — que es el
+accidente más caro posible en este proyecto.
+
+Para trabajar contra producción a propósito, renombra `.env.local`.
+
+Para la base local:
+
+```bash
+DATABASE_URL="postgresql://cumple:cumple@localhost:5433/cumple"
+DIRECT_URL="postgresql://cumple:cumple@localhost:5433/cumple"
+```
+
+Variables:
 
 | Variable | Para qué sirve |
 | --- | --- |
@@ -102,7 +123,12 @@ npm run db:seed       # datos de ejemplo + usuario administrador
 npm run db:seed:prod  # solo evento + administrador, sin invitados de ejemplo
 npm run db:studio     # explorador visual de la base de datos
 npm run setup         # generate + deploy + seed, todo junto
+npm run accounts      # alta de cuentas y cupos (ver "Cuentas y cupo")
 ```
+
+> **Nunca ejecutes `db:migrate` (`prisma migrate dev`) contra producción**: usa
+> una shadow database y puede proponer un reset. En producción va `db:deploy`,
+> que solo aplica las migraciones pendientes.
 
 > **En producción usa `npm run db:seed:prod`.** El seed normal incluye cuatro
 > invitados de ejemplo (Mariana López, Carlos Hernández…) que no deben acabar en
@@ -121,7 +147,9 @@ ejecutarlo las veces que quieras. Crea:
   | Ana Martínez | `ana-martinez` | 4 | Confirmada |
   | Sofía García | `sofia-garcia` | 2 | No asistirá |
 
-- El usuario administrador a partir de `ADMIN_EMAIL` / `ADMIN_PASSWORD`.
+- La cuenta administradora a partir de `ADMIN_EMAIL` / `ADMIN_PASSWORD`, como
+  superadmin y con cupo de 5 eventos. El evento cuelga de ella: sin cuenta no
+  puede haber evento, así que el seed la crea primero.
 
 ---
 
@@ -169,27 +197,98 @@ Cada fila de la tabla permite **ver**, **editar**, **copiar el enlace** y
 
 ---
 
+## Cuentas y cupo de eventos
+
+No hay registro público. Las cuentas las crea el equipo, y el **cupo de eventos
+activos** es la palanca comercial: se sube cuando el cliente paga.
+
+```bash
+npm run accounts list
+npm run accounts create --email ana@cliente.mx --password "…" --quota 1 --name "Ana"
+npm run accounts quota  --email ana@cliente.mx --quota 3
+npm run accounts password --email ana@cliente.mx --password "…"
+```
+
+Un evento **archivado** deja de consumir cupo, así que un cliente con cupo 1
+puede archivar la fiesta pasada y crear la siguiente. Crear —o reactivar— un
+evento por encima del cupo devuelve **402** con un mensaje que explica qué hacer.
+
+El cupo se comprueba en el servicio ([`lib/services/events.ts`](src/lib/services/events.ts)),
+no en la ruta, para que valga sea cual sea la vía de entrada.
+
+---
+
+## Aislamiento entre cuentas
+
+Todo evento cuelga de una cuenta, y **cada consulta del panel cruza por el dueño
+de la sesión**, no solo por el id que llega del cliente:
+
+```ts
+prisma.invitation.findMany({ where: { eventId, event: { ownerId } } })
+```
+
+Sin ese `event: { ownerId }` bastaría con conocer el id de un evento ajeno para
+leer su lista de invitados. La cookie que recuerda el evento en edición es solo
+una preferencia: cada lectura vuelve a comprobar la propiedad, así que
+manipularla a mano no da acceso a nada.
+
+La invitación pública `/i/[slug]` es la excepción deliberada: no filtra por
+dueño, porque el "secreto" es el slug.
+
+---
+
+## Temas
+
+Cada evento elige uno de cuatro temas. Un tema son cuatro cosas que viajan
+juntas, definidas en [`lib/themes.ts`](src/lib/themes.ts):
+
+| Tema | Registro | Escena |
+| --- | --- | --- |
+| **Bosque Encantado** | Romántico y natural | Vegetación, luciérnagas, mariposas |
+| **Vaqueros** | Blanco y negro, rústico | Desierto: sol, mesetas, saguaros, polvo |
+| **Barbie** | Pop y brillante (único tema **claro**) | Sol de rayos, nubes, colinas rosas |
+| **Noche de Brillos** | Glamour nocturno | Bola de espejos, haces de luz, destellos |
+
+Cómo está montado:
+
+1. **Colores** — [`globals.css`](src/app/globals.css). Las familias de tokens
+   (`cream`, `ink`, `forest`, `gold`…) funcionan como **capa semántica de
+   roles**: el nombre viene del tema original, pero el significado es el rol
+   (`cream` = papel, `ink` = texto, `forest` = fondo de escena). Cada tema las
+   reescribe bajo `[data-theme]`, así que ningún componente cambia de clases.
+2. **Tipografías** — [`i/[slug]/fonts.ts`](src/app/i/[slug]/fonts.ts), cargadas
+   en el segmento de la invitación y no en el layout raíz, para que el panel no
+   las descargue.
+3. **Escena** — [`components/invitation/scenes/`](src/components/invitation/scenes/).
+   Todas comparten `SceneShell`, que resuelve el parallax y la viñeta.
+4. **Textos** — el `copy` del tema, que el anfitrión puede sobrescribir por
+   evento. Cada campo cae por separado: dejarlo vacío usa el del tema.
+
+El atributo `data-theme` solo se aplica en `/i/[slug]`, por eso el panel conserva
+siempre su propia paleta.
+
+---
+
 ## Cómo cambiar el contenido del evento
 
-El MVP gestiona un evento a la vez (el más antiguo de la tabla `events`). Puedes
-editarlo de dos formas:
-
-- **Con Prisma Studio:** `npm run db:studio` → tabla `events`.
-- **Editando el seed** ([`prisma/seed.ts`](prisma/seed.ts), función `seedEvent`)
-  y ejecutando `npm run db:seed`.
-
-Campos y cómo se representan en la invitación:
+Desde **`/admin/evento`**, sin tocar la base ni el seed. Todo lo que se ve en la
+invitación se edita ahí:
 
 | Campo | Aparece como |
 | --- | --- |
-| `name` | Título. Si contiene `·` se parte en dos: `Maya · 29` → **MAYA** grande y **29** en dorado. Sin `·` se muestra completo. |
+| `name` | Título. Si contiene `·` se parte en dos: `Maya · 29` → **MAYA** grande y **29** destacado. Sin `·` se muestra completo. |
 | `description` | Subtítulo bajo el nombre (p. ej. `Birthday Celebration`). |
-| `date` | Fecha larga en español, sin año: “26 de septiembre”. |
+| `date` | Fecha larga en español, sin año: "26 de septiembre". |
 | `time` | Texto libre: `4:00 pm`. |
-| `location` | Lugar. Admite **saltos de línea**: la primera línea va destacada y la segunda más discreta (`Jardín Rosas y Miel\nSantiago Papasquiaro`). |
+| `location` | Lugar. Admite **saltos de línea**: la primera línea va destacada y la segunda más discreta. |
 | `locationUrl` | Convierte el lugar en enlace (Google Maps). |
 | `dressCode` / `dressCodeUrl` | Texto y enlace del dress code. |
-| `invitationImage` | **Opcional.** Ruta o URL de la ilustración de la invitación. Si se define, encabeza la lámina respetando su proporción original (nunca se deforma) y la tipografía la acompaña debajo. Si se deja en `null`, el marco botánico dibujado en SVG sostiene toda la estética. Para usar una imagen local, colócala en `public/` y guarda la ruta (p. ej. `/invitacion.png`). |
+| `invitationImage` | **Opcional.** Encabeza la lámina respetando su proporción original. |
+| `theme` | Uno de los cuatro temas. |
+| `sealedEyebrow` / `sealedHeadline` / `sealedCta` | Textos de la pantalla de bienvenida. Vacío = se usa el del tema. |
+
+El evento en edición se elige en `/admin/evento` y se muestra siempre en la barra
+lateral, porque el resto de las pantallas operan sobre él.
 
 ---
 
@@ -240,23 +339,31 @@ Funciona igual en cualquier proveedor con Node 20+ (`npm run build && npm run st
 
 ```
 assets/                    Marco y tipografías de la miniatura social
+docker-compose.yml         PostgreSQL 17 de desarrollo (puerto 5433)
+scripts/
+  env.ts                   Precedencia .env.local > .env
+  accounts.ts              Alta de cuentas y cupos
 prisma/
-  schema.prisma            Event · Invitation · Rsvp · AdminUser
+  schema.prisma            AdminUser · Event · Invitation · Rsvp
   seed.ts                  Datos de ejemplo, idempotente (`--prod` los omite)
 src/
   app/
-    i/[slug]/              Invitación pública + opengraph-image
+    i/[slug]/              Invitación pública + opengraph-image + fonts
     admin/login/           Acceso
-    admin/(panel)/         Resumen · invitaciones · confirmaciones
+    admin/(panel)/         Resumen · invitaciones · confirmaciones · evento
     api/                   Route Handlers
   components/
-    invitation/            ForestScene · OpeningCurtain · Fireflies ·
-                           InvitationCard · InvitationInfo · RSVPModal ·
-                           botanicals (biblioteca SVG) · ForegroundFauna
-    admin/                 AdminSidebar · StatsCard · InvitationTable · RSVPTable
+    invitation/            InvitationCard · InvitationInfo · RSVPModal ·
+                           OpeningCurtain · Fireflies · botanicals (SVG)
+    invitation/scenes/     SceneShell + una escena por tema + Scene (resolver)
+    admin/                 AdminSidebar · StatsCard · InvitationTable ·
+                           RSVPTable · EventManager · EventFormModal ·
+                           ThemePicker
     ui/                    Button · Field · Modal · Badge · States
   lib/
-    services/              Lógica de negocio (invitations · rsvp · stats)
+    services/              Lógica de negocio (events · invitations · rsvp · stats)
+    themes.ts              Catálogo de temas (colores, copy, muestras)
+    panel.ts               Contexto del panel: sesión + evento activo
     validations.ts         Esquemas Zod compartidos
     auth.ts / session.ts   Sesión del panel
     prisma.ts              Cliente singleton
@@ -277,14 +384,20 @@ Todas las respuestas siguen el mismo formato: `{ data }` en éxito y
 | --- | --- | --- | --- |
 | `POST` | `/api/auth/login` | Público | Inicia sesión y emite la cookie. |
 | `POST` | `/api/auth/logout` | Público | Cierra la sesión. |
-| `GET` | `/api/invitations` | Admin | Lista todas las invitaciones. |
+| `GET` | `/api/events` | Admin | Lista los eventos de la cuenta y su cupo. |
+| `POST` | `/api/events` | Admin | Crea un evento. **402** si excede el cupo. |
+| `GET` | `/api/events/[id]` | Admin | Detalle de un evento de la cuenta. |
+| `PATCH` | `/api/events/[id]` | Admin | Actualiza, archiva o reactiva un evento. |
+| `DELETE` | `/api/events/[id]` | Admin | Elimina el evento con sus invitaciones. |
+| `POST` | `/api/events/active` | Admin | Cambia el evento en edición. |
+| `GET` | `/api/invitations` | Admin | Invitaciones del evento activo. |
 | `POST` | `/api/invitations` | Admin | Crea una invitación (genera el slug). |
 | `GET` | `/api/invitations/[id]` | Admin | Detalle de una invitación. |
 | `PATCH` | `/api/invitations/[id]` | Admin | Actualiza una invitación. |
 | `DELETE` | `/api/invitations/[id]` | Admin | Elimina una invitación y su RSVP. |
 | `GET` | `/api/public/invitations/[slug]` | Público | Datos de la invitación para el invitado. |
 | `POST` | `/api/rsvp` | Público | Registra **o actualiza** la respuesta (upsert). |
-| `GET` | `/api/stats` | Admin | Métricas del panel. |
+| `GET` | `/api/stats` | Admin | Métricas del evento activo. |
 
 El RSVP es público a propósito: el “secreto” es el slug de la invitación. Una
 invitación tiene como máximo **un RSVP**, y el invitado puede cambiar su

@@ -16,7 +16,8 @@
     "db:seed:prod": "tsx prisma/seed.ts --prod",
     "db:studio": "prisma studio",
     "setup": "prisma generate && prisma migrate deploy && tsx prisma/seed.ts",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "accounts": "tsx scripts/accounts.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",

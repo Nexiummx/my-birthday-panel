@@ -1,0 +1,25 @@
+# Base de datos de desarrollo.
+#
+# Existe para no probar migraciones contra Supabase, donde vive el evento real.
+# El puerto es 5433 y no 5432 para no chocar con un Postgres ya instalado.
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: cumple-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: cumple
+      POSTGRES_PASSWORD: cumple
+      POSTGRES_DB: cumple
+    ports:
+      - "5433:5432"
+    volumes:
+      - cumple-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cumple -d cumple"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  cumple-db-data:

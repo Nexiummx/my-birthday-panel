@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import { ServiceError } from "@/lib/services/invitations";
+import { ServiceError } from "@/lib/services/errors";
 import type { RsvpInput } from "@/lib/validations";
 
 /**

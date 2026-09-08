@@ -1,4 +1,4 @@
-import "dotenv/config";
+import "../scripts/env";
 import bcrypt from "bcryptjs";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../src/generated/prisma/client";
@@ -70,16 +70,19 @@ async function seedAdmin() {
 
   const passwordHash = await bcrypt.hash(password, 12);
 
-  await prisma.adminUser.upsert({
+  // La cuenta del seed es la interna: superadmin y con cupo holgado. En una
+  // cuenta que ya existe solo se refresca la contraseña, nunca el cupo.
+  const admin = await prisma.adminUser.upsert({
     where: { email },
-    create: { email, passwordHash },
+    create: { email, passwordHash, eventQuota: 5, isSuperAdmin: true },
     update: { passwordHash },
   });
 
   console.log(`✔ Administrador listo: ${email}`);
+  return admin;
 }
 
-async function seedEvent() {
+async function seedEvent(ownerId: string) {
   const existing = await prisma.event.findFirst({ orderBy: { createdAt: "asc" } });
 
   const data = {
@@ -95,9 +98,11 @@ async function seedEvent() {
     invitationImage: null as string | null,
   };
 
+  // ownerId solo se fija al crear: si el evento ya existe puede haberse
+  // reasignado a otra cuenta a propósito y el seed no debe deshacerlo.
   const event = existing
     ? await prisma.event.update({ where: { id: existing.id }, data })
-    : await prisma.event.create({ data });
+    : await prisma.event.create({ data: { ...data, ownerId } });
 
   console.log(`✔ Evento listo: ${event.name}`);
   return event;
@@ -154,11 +159,17 @@ async function seedInvitations(eventId: string) {
 }
 
 async function main() {
-  const event = await seedEvent();
+  const admin = await seedAdmin();
+  if (!admin) {
+    throw new Error(
+      "Sin ADMIN_EMAIL / ADMIN_PASSWORD no se puede sembrar el evento: todo evento necesita una cuenta dueña."
+    );
+  }
+
+  const event = await seedEvent(admin.id);
   if (withDemoInvitations) {
     await seedInvitations(event.id);
   }
-  await seedAdmin();
 
   const base = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ?? "http://localhost:3000";
   if (withDemoInvitations) {

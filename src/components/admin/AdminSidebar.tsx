@@ -3,16 +3,17 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
-import { CalendarCheck, LayoutDashboard, Leaf, LogOut, Mail, Menu, X } from "lucide-react";
+import { CalendarCheck, CalendarDays, LayoutDashboard, Leaf, LogOut, Mail, Menu, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const LINKS = [
   { href: "/admin", label: "Resumen", icon: LayoutDashboard },
   { href: "/admin/invitaciones", label: "Invitaciones", icon: Mail },
   { href: "/admin/confirmaciones", label: "Confirmaciones", icon: CalendarCheck },
+  { href: "/admin/evento", label: "Eventos", icon: CalendarDays },
 ] as const;
 
-export function AdminSidebar({ email }: { email: string }) {
+export function AdminSidebar({ email, eventName }: { email: string; eventName: string | null }) {
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -29,9 +30,9 @@ export function AdminSidebar({ email }: { email: string }) {
     <>
       {/* Barra superior en móvil */}
       <header className="flex items-center justify-between border-b border-cream-200 bg-cream-50/90 px-4 py-3 backdrop-blur lg:hidden">
-        <span className="flex items-center gap-2 font-serif text-lg text-forest-800">
-          <Leaf className="size-4 text-olive-600" aria-hidden="true" />
-          Bosque
+        <span className="flex min-w-0 items-center gap-2 font-serif text-lg text-forest-800">
+          <Leaf className="size-4 shrink-0 text-olive-600" aria-hidden="true" />
+          <span className="truncate">{eventName ?? "Invitaciones"}</span>
         </span>
         <button
           type="button"
@@ -51,10 +52,15 @@ export function AdminSidebar({ email }: { email: string }) {
         )}
         aria-label="Navegación del panel"
       >
-        <div className="mb-8 hidden items-center gap-2 px-3 lg:flex">
-          <Leaf className="size-5 text-olive-600" aria-hidden="true" />
-          <span className="font-serif text-xl tracking-wide text-forest-800">
-            Bosque Encantado
+        <div className="mb-8 hidden px-3 lg:block">
+          <span className="flex items-center gap-2">
+            <Leaf className="size-5 text-olive-600" aria-hidden="true" />
+            <span className="font-serif text-xl tracking-wide text-forest-800">Invitaciones</span>
+          </span>
+          {/* Todas las pantallas del panel operan sobre este evento, así que
+              conviene tenerlo siempre a la vista. */}
+          <span className="mt-1.5 block truncate font-sans text-xs text-ink-500" title={eventName ?? undefined}>
+            {eventName ?? "Sin evento"}
           </span>
         </div>
 

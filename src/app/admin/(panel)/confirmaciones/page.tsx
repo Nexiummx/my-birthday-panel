@@ -4,6 +4,8 @@ import { StatsCard } from "@/components/admin/StatsCard";
 import { listInvitations } from "@/lib/services/invitations";
 import { getDashboardStats } from "@/lib/services/stats";
 import { toAdminInvitation } from "@/lib/admin-invitation";
+import { requirePanelContext } from "@/lib/panel";
+import { NoEventState } from "@/components/admin/NoEventState";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +15,14 @@ export const metadata: Metadata = {
 };
 
 export default async function ConfirmationsPage() {
-  const [invitations, stats] = await Promise.all([listInvitations(), getDashboardStats()]);
+  const { session, event } = await requirePanelContext();
+
+  if (!event) return <NoEventState />;
+
+  const [invitations, stats] = await Promise.all([
+    listInvitations(session.sub, event.id),
+    getDashboardStats(session.sub, event.id),
+  ]);
 
   return (
     <div className="space-y-8">

@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { InvitationTable } from "@/components/admin/InvitationTable";
 import { listInvitations } from "@/lib/services/invitations";
 import { toAdminInvitation } from "@/lib/admin-invitation";
+import { NoEventState } from "@/components/admin/NoEventState";
+import { requirePanelContext } from "@/lib/panel";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +13,11 @@ export const metadata: Metadata = {
 };
 
 export default async function InvitationsPage() {
-  const invitations = (await listInvitations()).map(toAdminInvitation);
+  const { session, event } = await requirePanelContext();
+
+  if (!event) return <NoEventState />;
+
+  const invitations = (await listInvitations(session.sub, event.id)).map(toAdminInvitation);
 
   return (
     <div className="space-y-8">
