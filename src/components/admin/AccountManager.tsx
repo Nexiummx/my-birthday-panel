@@ -6,6 +6,7 @@ import { Pencil, ShieldCheck, Trash2, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { AccountFormModal } from "@/components/admin/AccountFormModal";
 import type { AdminAccount } from "@/lib/admin-account";
+import { planForQuota } from "@/lib/pricing";
 import { cn } from "@/lib/utils";
 
 export function AccountManager({
@@ -121,6 +122,9 @@ export function AccountManager({
                       {account.activeEvents} / {account.eventQuota}
                     </span>
                     <span className="block text-xs text-ink-500">
+                      {/* El cupo es un número; el plan es lo que el cliente
+                          cree que compró. Verlos juntos evita cobrar de más. */}
+                      {planForQuota(account.eventQuota)?.name ?? "Sin plan"} ·{" "}
                       {account.totalEvents} en total
                     </span>
                   </td>

@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, CalendarCheck, LockKeyhole, MailOpen, Palette } from "lucide-react";
+import { PlanCards } from "@/components/pricing/PlanCards";
+import { CONTACT_LABEL, FEATURED_PLAN, contactHref, formatPrice } from "@/lib/pricing";
 import { THEME_LIST } from "@/lib/themes";
 
 /**
@@ -49,7 +51,8 @@ export default function HomePage() {
           </h1>
           <p className="mt-5 max-w-lg font-sans text-base leading-relaxed text-ink-700">
             Un enlace propio con su nombre, una apertura animada y la confirmación de
-            asistencia resuelta en el mismo sitio.
+            asistencia resuelta en el mismo sitio. Desde {formatPrice(FEATURED_PLAN.price)} MXN
+            por evento.
           </p>
 
           <div className="mt-9 flex flex-col items-center gap-3 sm:flex-row">
@@ -120,6 +123,33 @@ export default function HomePage() {
               </div>
             );
           })}
+        </section>
+
+        <section aria-labelledby="precios" className="flex flex-col gap-6">
+          <div className="text-center">
+            <h2 id="precios" className="font-serif text-2xl font-light text-forest-800">
+              Precios
+            </h2>
+            <p className="mt-2 font-sans text-sm text-ink-500">
+              Se paga por evento, no por invitado: invitar a 300 personas cuesta lo mismo que
+              invitar a 40.
+            </p>
+          </div>
+
+          <PlanCards />
+
+          <p className="text-center font-sans text-sm text-ink-500">
+            Creas tu cuenta gratis y la activamos por {CONTACT_LABEL} cuando quede el pago.{" "}
+            <a
+              href={contactHref()}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline decoration-cream-300 underline-offset-4 transition-colors hover:text-ink-900"
+            >
+              ¿Dudas? Escríbenos
+            </a>
+            .
+          </p>
         </section>
 
         <footer className="flex flex-col items-center gap-3 border-t border-cream-300 pt-8 text-center">

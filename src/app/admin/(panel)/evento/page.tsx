@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { ActivatePlanState } from "@/components/admin/ActivatePlanState";
 import { EventManager } from "@/components/admin/EventManager";
 import { getActiveEvent, getQuota, listEvents } from "@/lib/services/events";
 import { toAdminEvent } from "@/lib/admin-event";
@@ -33,11 +34,18 @@ export default async function EventsPage() {
         </p>
       </header>
 
-      <EventManager
-        events={events.map(toAdminEvent)}
-        activeEventId={active?.id ?? null}
-        quota={quota}
-      />
+      {/* Cupo 0 no es "alcanzaste tu límite": es una cuenta sin plan. Enseñarle
+          el administrador de eventos con todo deshabilitado no le sirve de nada;
+          lo que necesita es saber cuánto cuesta y a quién escribirle. */}
+      {quota.limit === 0 ? (
+        <ActivatePlanState accountEmail={session.email} />
+      ) : (
+        <EventManager
+          events={events.map(toAdminEvent)}
+          activeEventId={active?.id ?? null}
+          quota={quota}
+        />
+      )}
     </div>
   );
 }

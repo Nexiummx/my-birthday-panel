@@ -81,6 +81,12 @@ Variables:
 | `ADMIN_EMAIL` | Correo del administrador inicial. Lo consume el seed. |
 | `ADMIN_PASSWORD` | Contraseña inicial. **Solo la lee el seed**: en la base de datos se guarda hasheada con bcrypt (12 rondas). Nunca se almacena en texto plano ni se sube al repositorio. |
 | `AUTH_SECRET` | Firma la cookie de sesión. Genera uno con `openssl rand -base64 32`. |
+| `RESEND_API_KEY` | Envío de correo (recuperación de contraseña). Sin ella el enlace se imprime en la consola. |
+| `EMAIL_FROM` | Remitente. Su dominio debe estar verificado en Resend (SPF + DKIM). |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Acceso con Google. El botón solo aparece si están las dos. |
+| `FACEBOOK_CLIENT_ID` / `FACEBOOK_CLIENT_SECRET` | Igual, para Facebook. Cableado pero apagado hasta que Meta apruebe la app. |
+| `NEXT_PUBLIC_CONTACT_WHATSAPP` | Número comercial, solo dígitos con lada país. Sin él los botones de contratación caen a `mailto:`. |
+| `NEXT_PUBLIC_CONTACT_EMAIL` | Correo comercial de respaldo. |
 
 `.env` está en `.gitignore`; `.env.example` sí se versiona.
 
@@ -247,11 +253,48 @@ Cada fila de la tabla permite **ver**, **editar**, **copiar el enlace** y
 
 ---
 
+## Planes y precios
+
+Los precios viven en un solo archivo, [`src/lib/pricing.ts`](src/lib/pricing.ts).
+Cambiarlos ahí los cambia a la vez en la portada (`/`) y en la pantalla de
+activación del panel (`/admin/evento` con cupo 0). No hay precios escritos en
+ningún componente.
+
+| Plan | Precio | Cupo |
+| --- | --- | --- |
+| Evento único | $1,490 MXN, pago único | 1 evento activo |
+| Dos eventos | $2,490 MXN, pago único | 2 eventos activos |
+| Organizadores | $890 MXN al mes | 5 eventos activos |
+
+**Son una propuesta, no una decisión.** Ajústalos antes de publicar.
+
+Cada plan corresponde a un valor de `eventQuota`, y `planForQuota()` hace el
+camino de vuelta: el panel de clientes muestra el nombre del plan al lado del
+número para que nadie tenga que recordar qué significa un 2.
+
+### La regla al escribir un plan
+
+En `features` solo puede ir lo que el equipo cumple o el código impone. El
+**único** límite que la aplicación aplica sola es el cupo. No agregues "hasta
+200 invitados" ni "1 GB de imágenes": no hay nada que lo haga cumplir, y el
+cliente lo descubriría el día de su fiesta.
+
+### Cómo se cobra hoy
+
+No hay pasarela de pago. El flujo es: el cliente se registra → ve los precios en
+`/admin/evento` → escribe por WhatsApp (el mensaje lleva su correo ya escrito) →
+el equipo cobra por fuera y sube el cupo desde `/admin/clientes`. Para el primer
+puñado de clientes esto es más barato que integrar Stripe, y deja ver qué plan
+se vende antes de programarlo.
+
+---
+
 ## Cuentas y cupo de eventos
 
-No hay registro público. Las cuentas las crea el equipo desde
-**`/admin/clientes`**, y el **cupo de eventos activos** es la palanca comercial:
-se sube cuando el cliente paga.
+Cualquiera crea su cuenta desde `/admin/registro`, pero nace con **cupo 0**. El
+**cupo de eventos activos** es la palanca comercial: lo sube el equipo desde
+**`/admin/clientes`** cuando el cliente paga. Es el único límite que la
+aplicación hace cumplir por sí sola.
 
 Esa sección solo la ven las cuentas con `isSuperAdmin`. El enlace se oculta a
 los demás, pero eso es cosmético: **la página y las cuatro rutas de API
@@ -288,11 +331,11 @@ no en la ruta, para que valga sea cual sea la vía de entrada.
 
 El cliente se administra solo desde **`/admin/cuenta`**: cambia su nombre, su
 correo de acceso y su contraseña sin intervención del equipo. Ambas operaciones
-exigen la contraseña actual, porque **todavía no hay recuperación por correo** y
-esa es la única barrera si alguien encuentra una sesión abierta.
+exigen la contraseña actual, que es la barrera si alguien encuentra una sesión
+abierta. Quien entró con Google y nunca puso contraseña no la necesita.
 
-Al cambiar el correo se reemite el JWT: lleva el correo dentro y, sin reemitirlo,
-la sesión seguiría viva con el dato viejo hasta caducar.
+Si la perdió, `/admin/recuperar` envía un enlace de un solo uso; el comando
+`npm run accounts password` sigue siendo el respaldo cuando el correo falla.
 
 El correo lo envía [Resend](src/lib/email.ts). Sin `RESEND_API_KEY` no se rompe
 nada: el enlace se escribe en la consola, lo que permite probar el flujo completo

@@ -6,6 +6,7 @@ import { Archive, ArchiveRestore, CalendarPlus, Check, Pencil, Trash2 } from "lu
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/States";
 import { EventFormModal } from "@/components/admin/EventFormModal";
+import { planForQuota } from "@/lib/pricing";
 import { getTheme } from "@/lib/themes";
 import type { AdminEvent } from "@/lib/admin-event";
 import type { EventThemeValue } from "@/lib/validations";
@@ -86,8 +87,8 @@ export function EventManager({
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <p className="font-sans text-sm text-ink-500">
-          {quota.used} de {quota.limit} {quota.limit === 1 ? "evento activo" : "eventos activos"} en
-          tu plan.{" "}
+          Plan {planForQuota(quota.limit)?.name ?? "sin activar"}: {quota.used} de {quota.limit}{" "}
+          {quota.limit === 1 ? "evento activo" : "eventos activos"}.{" "}
           {quota.available === 0 && (
             <span className="text-ink-700">
               Archiva uno para liberar espacio, o amplía tu plan.
