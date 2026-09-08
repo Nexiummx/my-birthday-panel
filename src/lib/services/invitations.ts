@@ -2,7 +2,11 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { uniqueSlug } from "@/lib/slug";
 import { ServiceError } from "@/lib/services/errors";
-import type { CreateInvitationInput, UpdateInvitationInput } from "@/lib/validations";
+import type {
+  CreateInvitationInput,
+  ImportInvitationsInput,
+  UpdateInvitationInput,
+} from "@/lib/validations";
 import type { InvitationStatus } from "@/generated/prisma/enums";
 
 const invitationWithRsvp = {
@@ -68,6 +72,45 @@ export async function createInvitation(
     },
     include: invitationWithRsvp,
   });
+}
+
+/**
+ * Alta de varias invitaciones de una vez.
+ *
+ * Los slugs se acumulan sobre la marcha además de leerse de la base: dos
+ * "Ana García" en el mismo pegado tienen que salir con slugs distintos, y
+ * consultando solo lo ya guardado ambas recibirían el mismo.
+ *
+ * Va en transacción: o entran todas o no entra ninguna. Una importación a
+ * medias deja al anfitrión sin saber por dónde iba.
+ */
+export async function importInvitations(
+  ownerId: string,
+  eventId: string,
+  guests: ImportInvitationsInput["guests"]
+) {
+  const event = await prisma.event.findFirst({ where: { id: eventId, ownerId } });
+  if (!event) {
+    throw new ServiceError("El evento no existe", 404);
+  }
+
+  const existing = await prisma.invitation.findMany({ select: { slug: true } });
+  const taken = new Set(existing.map((row) => row.slug));
+
+  const rows = guests.map((guest) => {
+    const slug = uniqueSlug(guest.guestName, taken);
+    taken.add(slug);
+    return {
+      eventId,
+      slug,
+      guestName: guest.guestName,
+      guestCount: guest.guestCount,
+    };
+  });
+
+  await prisma.$transaction(rows.map((data) => prisma.invitation.create({ data })));
+
+  return { created: rows.length };
 }
 
 export async function updateInvitation(

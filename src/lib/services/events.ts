@@ -6,7 +6,7 @@ import type { CreateEventInput, UpdateEventInput } from "@/lib/validations";
 import type { EventTheme } from "@/generated/prisma/enums";
 
 /** Recuerda qué evento está mirando el anfitrión entre visitas al panel. */
-export const ACTIVE_EVENT_COOKIE = "bosque_event";
+export const ACTIVE_EVENT_COOKIE = "active_event";
 
 export type EventRecord = Awaited<ReturnType<typeof listEvents>>[number];
 

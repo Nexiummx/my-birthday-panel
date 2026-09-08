@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Check, Copy, ExternalLink, Mail, Pencil, Plus, Trash2 } from "lucide-react";
+import { Check, Copy, ExternalLink, Mail, Pencil, Plus, Trash2, Upload } from "lucide-react";
 import { InvitationFormModal } from "@/components/admin/InvitationFormModal";
+import { ImportGuestsModal } from "@/components/admin/ImportGuestsModal";
 import { Button } from "@/components/ui/Button";
 import { StatusBadge } from "@/components/ui/Badge";
 import { EmptyState, ErrorState } from "@/components/ui/States";
@@ -14,6 +15,7 @@ import type { AdminInvitation } from "@/lib/admin-invitation";
 export function InvitationTable({ invitations }: { invitations: AdminInvitation[] }) {
   const router = useRouter();
   const [formOpen, setFormOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [editing, setEditing] = useState<AdminInvitation | null>(null);
   const [deleting, setDeleting] = useState<AdminInvitation | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -54,15 +56,24 @@ export function InvitationTable({ invitations }: { invitations: AdminInvitation[
         <p className="font-sans text-sm text-ink-500">
           {invitations.length} {invitations.length === 1 ? "invitación" : "invitaciones"} en total
         </p>
-        <Button
-          onClick={() => {
-            setEditing(null);
-            setFormOpen(true);
-          }}
-          icon={<Plus className="size-4" aria-hidden="true" />}
-        >
-          Crear invitación
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="secondary"
+            onClick={() => setImportOpen(true)}
+            icon={<Upload className="size-4" aria-hidden="true" />}
+          >
+            Importar lista
+          </Button>
+          <Button
+            onClick={() => {
+              setEditing(null);
+              setFormOpen(true);
+            }}
+            icon={<Plus className="size-4" aria-hidden="true" />}
+          >
+            Crear invitación
+          </Button>
+        </div>
       </div>
 
       {error && <ErrorState description={error} />}
@@ -171,6 +182,12 @@ export function InvitationTable({ invitations }: { invitations: AdminInvitation[
           </table>
         </div>
       )}
+
+      <ImportGuestsModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onImported={() => router.refresh()}
+      />
 
       <InvitationFormModal
         open={formOpen}

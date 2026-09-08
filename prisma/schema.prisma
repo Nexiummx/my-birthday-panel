@@ -102,6 +102,23 @@ model Account {
   @@map("accounts")
 }
 
+/// Contador de peticiones por clave. Vive en base y no en memoria a propósito:
+/// en un despliegue sin servidor cada instancia tiene su propia memoria, así
+/// que un contador en RAM no limita casi nada.
+model RateLimit {
+  id          String  @id @default(cuid())
+  key         String?
+  /// Peticiones dentro de la ventana actual.
+  count       Int?
+  /// Marca de tiempo en MILISEGUNDOS: no cabe en un Int de 32 bits, de ahí
+  /// BigInt. Los campos van opcionales para coincidir con lo que espera el
+  /// adaptador de Better Auth.
+  lastRequest BigInt?
+
+  @@index([key])
+  @@map("rate_limits")
+}
+
 /// Tokens de un solo uso: verificación de correo y restablecimiento de
 /// contraseña.
 model Verification {

@@ -163,6 +163,8 @@ npm run build      # build de producción
 npm run start      # sirve el build
 npm run lint       # ESLint
 npm run typecheck  # TypeScript sin emitir
+npm test           # Vitest, una pasada
+npm run test:watch # Vitest en modo continuo
 ```
 
 ---
@@ -188,6 +190,12 @@ contraseña y proveedores sociales. El hash sigue siendo **bcrypt**: la
 configuración lo verifica a propósito para que las cuentas anteriores a la
 migración entren con su contraseña de siempre, sin restablecer nada.
 
+**Límite de peticiones.** El contador vive en base y no en memoria: en un
+despliegue sin servidor cada instancia tiene su propia memoria y un contador en
+RAM no limitaría casi nada. Las tres rutas que cuestan dinero o permiten sondear
+cuentas llevan límites más estrictos: acceso (8/min), alta (5/hora) y
+restablecimiento (4/hora).
+
 **La sesión vive en base**, no en un JWT autocontenido, así que puede revocarse de
 verdad. [`src/proxy.ts`](src/proxy.ts) solo comprueba que exista la cookie —en el
 borde no hay acceso a la base—: es un filtro de tráfico, no la barrera. Esa está
@@ -195,6 +203,30 @@ en el layout del panel y en `requireSession()` de cada ruta de API.
 
 Para restablecer la contraseña de alguien sin pasar por su correo:
 `npm run accounts password --email … --password …`.
+
+---
+
+## Importar la lista de invitados
+
+Desde **`/admin/invitaciones` → “Importar lista”**. Se pega un invitado por
+línea:
+
+```
+Mariana López, 2
+Carlos Hernández, 1
+Ana Martínez, 4
+Sofía García
+```
+
+Acepta coma, punto y coma o tabulador —esto último es lo que sale al copiar de
+una hoja de cálculo— y asume un pase cuando no se indica número. Antes de crear
+nada se muestra cuántas invitaciones y cuántos pases saldrán, y qué líneas se
+van a omitir: las filas problemáticas se marcan en vez de descartarse en
+silencio.
+
+Los slugs se acumulan sobre la marcha además de leerse de la base, así que dos
+“Ana García” en el mismo pegado salen como `ana-garcia` y `ana-garcia-2`. Todo
+va en una transacción: o entran todas o no entra ninguna.
 
 ---
 
@@ -465,6 +497,7 @@ Todas las respuestas siguen el mismo formato: `{ data }` en éxito y
 | `DELETE` | `/api/events/[id]` | Admin | Elimina el evento con sus invitaciones. |
 | `POST` | `/api/events/active` | Admin | Cambia el evento en edición. |
 | `GET` | `/api/invitations` | Admin | Invitaciones del evento activo. |
+| `POST` | `/api/invitations/import` | Admin | Alta en bloque desde una lista pegada. |
 | `POST` | `/api/invitations` | Admin | Crea una invitación (genera el slug). |
 | `GET` | `/api/invitations/[id]` | Admin | Detalle de una invitación. |
 | `PATCH` | `/api/invitations/[id]` | Admin | Actualiza una invitación. |
@@ -477,6 +510,38 @@ El RSVP es público a propósito: el “secreto” es el slug de la invitación.
 invitación tiene como máximo **un RSVP**, y el invitado puede cambiar su
 respuesta cuantas veces quiera; el RSVP y el estado de la invitación se escriben
 en una sola transacción para que nunca diverjan.
+
+---
+
+## Páginas públicas
+
+| Ruta | Qué es |
+| --- | --- |
+| `/` | Portada del producto. **No consulta la base a propósito**: la versión anterior enlazaba la primera invitación que encontrara, con el nombre del invitado incluido. Como el secreto de una invitación es su slug, eso permitía a cualquiera abrirla y confirmar en nombre de esa persona. |
+| `/privacidad` | Aviso de privacidad. Google exige uno accesible para verificar la app de OAuth. |
+| `/terminos` | Términos del servicio. |
+
+> Los datos del responsable viven en `RESPONSABLE`, dentro de
+> [`LegalPage.tsx`](src/components/legal/LegalPage.tsx). **Hay que sustituirlos
+> por los reales antes de publicar**: un aviso con marcadores de posición no
+> pasa la revisión de Google.
+
+---
+
+## Pruebas
+
+```bash
+npm test
+```
+
+Cubren la lógica pura de mayor riesgo: la interpretación de la lista de
+invitados, la generación de slugs —que son el secreto de cada invitación, y no
+pueden repetirse ni siquiera dentro de un mismo lote— y la coherencia del
+catálogo de temas.
+
+> **Pendiente:** no hay pruebas de integración del aislamiento entre cuentas,
+> que es la garantía más importante del sistema. Necesitan una base de datos de
+> pruebas con su montaje y desmontaje.
 
 ---
 

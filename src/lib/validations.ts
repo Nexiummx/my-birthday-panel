@@ -296,3 +296,79 @@ export const resetPasswordSchema = z
     path: ["confirmPassword"],
   });
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
+
+/**
+ * Importación de invitados en bloque.
+ *
+ * El texto pegado se analiza en el cliente para poder enseñar la vista previa,
+ * pero la API recibe las filas ya separadas y las vuelve a validar: el cliente
+ * nunca es fuente de verdad.
+ */
+export const importInvitationsSchema = z.object({
+  eventId: z.string().min(1).optional(),
+  guests: z
+    .array(
+      z.object({
+        guestName: z
+          .string()
+          .trim()
+          .min(2, "El nombre debe tener al menos 2 caracteres")
+          .max(80, "El nombre es demasiado largo"),
+        guestCount: z.coerce
+          .number<number>()
+          .int("Debe ser un número entero")
+          .min(1, "Debe haber al menos 1 pase")
+          .max(20, "Máximo 20 pases por invitación"),
+      })
+    )
+    .min(1, "No hay invitados que importar")
+    .max(500, "Máximo 500 invitados por importación"),
+});
+export type ImportInvitationsInput = z.infer<typeof importInvitationsSchema>;
+
+/** Una fila del texto pegado, ya interpretada. */
+export interface ParsedGuest {
+  guestName: string;
+  guestCount: number;
+  /** Motivo por el que la fila no se puede importar, si lo hay. */
+  error?: string;
+}
+
+/**
+ * Interpreta el texto pegado.
+ *
+ * Acepta "Nombre, pases", "Nombre; pases", tabulador —que es lo que sale al
+ * copiar de una hoja de cálculo— o solo el nombre, en cuyo caso se asume un
+ * pase. Las filas problemáticas se devuelven marcadas en vez de descartarse:
+ * es preferible que el anfitrión vea qué falló a que desaparezcan en silencio.
+ */
+export function parseGuestList(raw: string): ParsedGuest[] {
+  return raw
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+    .map((line) => {
+      const parts = line.split(/[\t,;]/).map((part) => part.trim());
+      const guestName = parts[0] ?? "";
+      const rest = parts[1];
+
+      if (guestName.length < 2) {
+        return { guestName: line, guestCount: 1, error: "Nombre demasiado corto" };
+      }
+      if (guestName.length > 80) {
+        return { guestName, guestCount: 1, error: "Nombre demasiado largo" };
+      }
+
+      // Sin segunda columna se asume un pase, que es el caso más común.
+      if (!rest) {
+        return { guestName, guestCount: 1 };
+      }
+
+      const guestCount = Number(rest);
+      if (!Number.isInteger(guestCount) || guestCount < 1 || guestCount > 20) {
+        return { guestName, guestCount: 1, error: `"${rest}" no es un número de pases válido` };
+      }
+
+      return { guestName, guestCount };
+    });
+}

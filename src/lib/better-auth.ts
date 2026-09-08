@@ -31,9 +31,28 @@ export const auth = betterAuth({
     },
   },
 
+  // El contador vive en base, no en memoria: en Vercel cada instancia tendría
+  // la suya y el límite no serviría de nada. Sin esto, cualquiera puede pedir
+  // mil restablecimientos y agotar la cuota de correo.
+  rateLimit: {
+    enabled: true,
+    storage: "database",
+    window: 60,
+    max: 30,
+    customRules: {
+      // Los tres caminos que cuestan dinero o permiten sondear cuentas.
+      "/sign-in/email": { window: 60, max: 8 },
+      "/sign-up/email": { window: 3600, max: 5 },
+      "/request-password-reset": { window: 3600, max: 4 },
+    },
+  },
+
   emailAndPassword: {
     enabled: true,
     minPasswordLength: 8,
+    // Se puede entrar sin verificar: bloquear el acceso convertiría cualquier
+    // problema de entrega de correo en una cuenta inutilizable. El aviso vive
+    // en el panel, y con cupo 0 una cuenta sin verificar no puede hacer nada.
     requireEmailVerification: false,
     sendResetPassword: async ({ user, url }) => {
       await sendPasswordReset(user.email, url);
