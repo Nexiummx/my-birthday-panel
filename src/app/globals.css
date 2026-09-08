@@ -446,3 +446,58 @@ body {
   animation: beam-sweep 14s ease-in-out infinite alternate;
   transform-origin: 50% 12%;
 }
+
+/* ─────────────────────────────────────────────────────────────
+   PANEL
+   El panel es deliberadamente NEUTRO, no un tema más.
+
+   Hacerlo por tema no escalaría: cada estética nueva obligaría a una variante
+   del panel, y un cliente con dos eventos de temas distintos vería la
+   herramienta cambiar de identidad al alternar entre ellos. El tema pertenece
+   a la invitación, que es el producto; el panel es el taller.
+
+   Aprovecha la misma capa de roles que los temas, así que no hace falta tocar
+   ningún componente: solo se reasignan las familias. Los neutros llevan un
+   sesgo azulado y el acento es azul pizarra, para que no se lea ni verde
+   —bosque— ni gris de plantilla.
+   ───────────────────────────────────────────────────────────── */
+[data-panel] {
+  /* Superficies: papel del panel */
+  --color-cream-50: #ffffff;
+  --color-cream-100: #f7f8fa;
+  --color-cream-200: #eaedf1;
+  --color-cream-300: #d8dde4;
+
+  /* Texto */
+  --color-ink-900: #141922;
+  --color-ink-700: #414a58;
+  --color-ink-500: #6c7583;
+
+  /* Titulares y superficies oscuras */
+  --color-forest-950: #080b10;
+  --color-forest-900: #0e131a;
+  --color-forest-800: #1c2430;
+  --color-forest-700: #2a3440;
+
+  /* Acento primario · botones y estado "confirmado" */
+  --color-olive-500: #5b83b8;
+  --color-olive-600: #3d6597;
+  --color-olive-700: #2e4e77;
+
+  /* Acentos claros */
+  --color-sage-200: #e4e9f0;
+  --color-sage-300: #c7d1de;
+  --color-sage-400: #94a2b5;
+
+  /* Filetes y foco. Ocupan el hueco del dorado, pero en metal frío. */
+  --color-gold-300: #cdd5e0;
+  --color-gold-400: #a3afc0;
+  --color-gold-500: #78859a;
+  --color-gold-600: #56637a;
+
+  /* Estados negativos · "no asistirá", errores, eliminar */
+  --color-blush-200: #fdecea;
+  --color-blush-300: #f8c4bd;
+  --color-blush-400: #ee6a5c;
+  --color-blush-500: #c8372a;
+}

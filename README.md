@@ -288,6 +288,7 @@ Cómo está montado:
    roles**: el nombre viene del tema original, pero el significado es el rol
    (`cream` = papel, `ink` = texto, `forest` = fondo de escena). Cada tema las
    reescribe bajo `[data-theme]`, así que ningún componente cambia de clases.
+   El panel usa esa misma capa bajo `[data-panel]` para su paleta neutra.
 2. **Tipografías** — [`i/[slug]/fonts.ts`](src/app/i/[slug]/fonts.ts), cargadas
    en el segmento de la invitación y no en el layout raíz, para que el panel no
    las descargue.
@@ -298,6 +299,19 @@ Cómo está montado:
 
 El atributo `data-theme` solo se aplica en `/i/[slug]`, por eso el panel conserva
 siempre su propia paleta.
+
+### El panel es neutro a propósito
+
+No lleva la estética de ningún tema. Hacerlo por tema no escalaría —cada
+estética nueva obligaría a una variante del panel— y un cliente con dos eventos
+de temas distintos vería la herramienta cambiar de identidad al alternar entre
+ellos. El tema pertenece a la invitación, que es lo que se vende; el panel es el
+taller.
+
+Su paleta vive bajo `[data-panel]` y reasigna las mismas familias de roles:
+neutros con sesgo azulado y acento azul pizarra. Agregar temas no lo toca nunca.
+El tema sí aparece en el panel, pero **como dato** —la muestra de color en la
+lista de eventos—, nunca como decorado.
 
 ---
 

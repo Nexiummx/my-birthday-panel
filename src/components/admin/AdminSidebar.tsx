@@ -7,7 +7,7 @@ import {
   CalendarCheck,
   CalendarDays,
   LayoutDashboard,
-  Leaf,
+  MailOpen,
   LogOut,
   Mail,
   Menu,
@@ -56,7 +56,7 @@ export function AdminSidebar({
       {/* Barra superior en móvil */}
       <header className="flex items-center justify-between border-b border-cream-200 bg-cream-50/90 px-4 py-3 backdrop-blur lg:hidden">
         <span className="flex min-w-0 items-center gap-2 font-serif text-lg text-forest-800">
-          <Leaf className="size-4 shrink-0 text-olive-600" aria-hidden="true" />
+          <MailOpen className="size-4 shrink-0 text-olive-600" aria-hidden="true" />
           <span className="truncate">{eventName ?? "Invitaciones"}</span>
         </span>
         <button
@@ -79,7 +79,7 @@ export function AdminSidebar({
       >
         <div className="mb-8 hidden px-3 lg:block">
           <span className="flex items-center gap-2">
-            <Leaf className="size-5 text-olive-600" aria-hidden="true" />
+            <MailOpen className="size-5 text-olive-600" aria-hidden="true" />
             <span className="font-serif text-xl tracking-wide text-forest-800">Invitaciones</span>
           </span>
           {/* Todas las pantallas del panel operan sobre este evento, así que

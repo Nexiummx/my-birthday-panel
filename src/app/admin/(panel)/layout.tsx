@@ -20,7 +20,9 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
   ]);
 
   return (
-    <div className="flex min-h-dvh flex-col bg-cream-100/40 lg:flex-row">
+    // data-panel reasigna las familias de tokens a la paleta neutra. El panel
+    // no es un tema más: ver globals.css, sección PANEL.
+    <div data-panel className="flex min-h-dvh flex-col bg-cream-100/40 lg:flex-row">
       <AdminSidebar
         email={session.email}
         eventName={event?.name ?? null}

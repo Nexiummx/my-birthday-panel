@@ -50,7 +50,7 @@ export function LoginForm() {
           id="email"
           type="email"
           autoComplete="email"
-          placeholder="admin@bosque.mx"
+          placeholder="tu@correo.com"
           aria-invalid={Boolean(errors.email)}
           {...register("email")}
         />
