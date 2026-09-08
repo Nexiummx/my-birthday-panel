@@ -15,6 +15,7 @@ import {
   Users,
   X,
 } from "lucide-react";
+import { signOut } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 
 const LINKS = [
@@ -44,9 +45,9 @@ export function AdminSidebar({
   const [open, setOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
 
-  const signOut = async () => {
+  const endSession = async () => {
     setSigningOut(true);
-    await fetch("/api/auth/logout", { method: "POST" });
+    await signOut();
     router.replace("/admin/login");
     router.refresh();
   };
@@ -122,7 +123,7 @@ export function AdminSidebar({
           </Link>
           <button
             type="button"
-            onClick={signOut}
+            onClick={endSession}
             disabled={signingOut}
             className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 font-sans text-sm text-ink-700 transition-colors hover:bg-blush-200/60 hover:text-blush-500 disabled:opacity-60"
           >

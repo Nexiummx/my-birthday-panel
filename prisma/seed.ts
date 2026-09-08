@@ -74,9 +74,28 @@ async function seedAdmin() {
   // cuenta que ya existe solo se refresca la contraseña, nunca el cupo.
   const admin = await prisma.adminUser.upsert({
     where: { email },
-    create: { email, passwordHash, eventQuota: 5, isSuperAdmin: true },
-    update: { passwordHash },
+    create: { email, name: "Equipo", eventQuota: 5, isSuperAdmin: true, emailVerified: true },
+    update: {},
   });
+
+  // La contraseña vive en accounts, no en el usuario: es como Better Auth
+  // permite que una cuenta tenga a la vez contraseña y proveedores sociales.
+  const existing = await prisma.account.findFirst({
+    where: { userId: admin.id, providerId: "credential" },
+  });
+
+  if (existing) {
+    await prisma.account.update({ where: { id: existing.id }, data: { password: passwordHash } });
+  } else {
+    await prisma.account.create({
+      data: {
+        accountId: admin.id,
+        providerId: "credential",
+        userId: admin.id,
+        password: passwordHash,
+      },
+    });
+  }
 
   console.log(`✔ Administrador listo: ${email}`);
   return admin;

@@ -258,3 +258,41 @@ export function accountFormSchema(isEdit: boolean) {
     }
   });
 }
+
+/** Alta pública de cuenta. */
+export const signUpSchema = z
+  .object({
+    name: z.string().trim().min(2, "Escribe tu nombre").max(80, "El nombre es demasiado largo"),
+    email: z.email("Correo electrónico inválido").trim().toLowerCase(),
+    password: z
+      .string()
+      .min(8, "La contraseña debe tener al menos 8 caracteres")
+      .max(200, "La contraseña es demasiado larga"),
+    confirmPassword: z.string(),
+  })
+  .refine((value) => value.password === value.confirmPassword, {
+    message: "Las contraseñas no coinciden",
+    path: ["confirmPassword"],
+  });
+export type SignUpInput = z.infer<typeof signUpSchema>;
+
+/** Petición de restablecimiento: solo el correo. */
+export const forgotPasswordSchema = z.object({
+  email: z.email("Correo electrónico inválido").trim().toLowerCase(),
+});
+export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
+
+/** Nueva contraseña, ya con el token del correo en la URL. */
+export const resetPasswordSchema = z
+  .object({
+    password: z
+      .string()
+      .min(8, "La contraseña debe tener al menos 8 caracteres")
+      .max(200, "La contraseña es demasiado larga"),
+    confirmPassword: z.string(),
+  })
+  .refine((value) => value.password === value.confirmPassword, {
+    message: "Las contraseñas no coinciden",
+    path: ["confirmPassword"],
+  });
+export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;

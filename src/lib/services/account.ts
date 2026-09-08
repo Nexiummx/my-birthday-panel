@@ -1,8 +1,7 @@
 import "server-only";
-import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
-import { hashPassword } from "@/lib/auth";
 import { ServiceError } from "@/lib/services/errors";
+import { hasPassword, setUserPassword, verifyUserPassword } from "@/lib/services/credentials";
 import type { ChangePasswordInput, UpdateProfileInput } from "@/lib/validations";
 
 /** Datos de la cuenta para la pantalla "Mi cuenta". */
@@ -26,8 +25,15 @@ async function assertPassword(id: string, password: string) {
     throw new ServiceError("La cuenta no existe", 404);
   }
 
-  const valid = await bcrypt.compare(password, account.passwordHash);
-  if (!valid) {
+  // Quien entró solo con Google todavía no tiene contraseña que comprobar.
+  if (!(await hasPassword(id))) {
+    throw new ServiceError(
+      "Tu cuenta entra con Google y todavía no tiene contraseña. Usa \"olvidé mi contraseña\" para crear una.",
+      409
+    );
+  }
+
+  if (!(await verifyUserPassword(id, password))) {
     throw new ServiceError("La contraseña no es correcta", 401);
   }
 
@@ -46,7 +52,7 @@ export async function updateProfile(id: string, input: UpdateProfileInput) {
 
   return prisma.adminUser.update({
     where: { id },
-    data: { email: input.email, name: input.name?.trim() || null },
+    data: { email: input.email, name: input.name?.trim() ?? "" },
     select: { id: true, email: true, name: true },
   });
 }
@@ -54,8 +60,5 @@ export async function updateProfile(id: string, input: UpdateProfileInput) {
 export async function changePassword(id: string, input: ChangePasswordInput) {
   await assertPassword(id, input.currentPassword);
 
-  await prisma.adminUser.update({
-    where: { id },
-    data: { passwordHash: await hashPassword(input.newPassword) },
-  });
+  await setUserPassword(id, input.newPassword);
 }

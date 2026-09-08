@@ -12,8 +12,8 @@ paleta, las tipografías, la escena de fondo y los textos de bienvenida.
 - **Panel del cliente:** `/admin/login`, `/admin`, `/admin/invitaciones`, `/admin/confirmaciones`, `/admin/evento`, `/admin/cuenta`
 - **Solo equipo:** `/admin/clientes` — alta de cuentas y cupos
 
-No hay registro público: las cuentas y su cupo de eventos los da de alta el
-equipo desde `/admin/clientes`.
+Cualquiera puede crear su cuenta, pero nace con **cupo 0**: entra al panel y no
+puede crear eventos hasta que el equipo se lo habilite desde `/admin/clientes`.
 
 ---
 
@@ -30,7 +30,8 @@ equipo desde `/admin/clientes`.
 | Validación | Zod (mismos esquemas en cliente y servidor) |
 | Formularios | React Hook Form |
 | Iconos | Lucide React |
-| Sesión admin | JWT HS256 en cookie httpOnly (`jose`) + bcrypt |
+| Autenticación | Better Auth — correo/contraseña, Google, Facebook |
+| Correo | Resend (sin API key, el enlace se imprime en consola) |
 
 Todo vive en un único proyecto Next.js: no hay backend separado, ni Redux, ni
 GraphQL. Docker se usa solo para levantar la base de datos de desarrollo.
@@ -166,18 +167,34 @@ npm run typecheck  # TypeScript sin emitir
 
 ---
 
-## Login del administrador
+## Autenticación
 
-1. Entra a `/admin/login`.
-2. Usa el correo y la contraseña de `ADMIN_EMAIL` / `ADMIN_PASSWORD`.
+La gestiona [Better Auth](src/lib/better-auth.ts), con cuatro pantallas públicas:
+`/admin/login`, `/admin/registro`, `/admin/recuperar` y `/admin/restablecer`.
 
-La sesión es un JWT firmado (HS256) guardado en una cookie `httpOnly`, `sameSite=lax`
-y `secure` en producción, con 8 horas de validez. [`src/proxy.ts`](src/proxy.ts)
-bloquea `/admin/*` en el borde antes de renderizar nada, y el layout del panel
-vuelve a comprobar la sesión en el servidor.
+**Formas de entrar.** Correo y contraseña, Google y Facebook. Un proveedor social
+solo aparece en pantalla si sus dos variables de entorno están puestas: un botón
+sin credenciales lleva a una pantalla de error del proveedor, así que es mejor no
+pintarlo.
 
-Para cambiar la contraseña: actualiza `ADMIN_PASSWORD` y ejecuta `npm run db:seed`
-(el seed reescribe el hash del usuario existente).
+**Vinculación de cuentas.** Si alguien se registra con correo y después entra con
+Google del mismo correo, se vinculan **solo con proveedores que certifican el
+correo como verificado**. Google lo hace; Facebook no de forma fiable, y vincular
+a ciegas por correo es una vía conocida de secuestro de cuentas.
+
+**Las credenciales no viven en el usuario.** La contraseña está en `accounts`, con
+`providerId = "credential"`, que es como una misma cuenta puede tener a la vez
+contraseña y proveedores sociales. El hash sigue siendo **bcrypt**: la
+configuración lo verifica a propósito para que las cuentas anteriores a la
+migración entren con su contraseña de siempre, sin restablecer nada.
+
+**La sesión vive en base**, no en un JWT autocontenido, así que puede revocarse de
+verdad. [`src/proxy.ts`](src/proxy.ts) solo comprueba que exista la cookie —en el
+borde no hay acceso a la base—: es un filtro de tráfico, no la barrera. Esa está
+en el layout del panel y en `requireSession()` de cada ruta de API.
+
+Para restablecer la contraseña de alguien sin pasar por su correo:
+`npm run accounts password --email … --password …`.
 
 ---
 
@@ -245,8 +262,9 @@ esa es la única barrera si alguien encuentra una sesión abierta.
 Al cambiar el correo se reemite el JWT: lleva el correo dentro y, sin reemitirlo,
 la sesión seguiría viva con el dato viejo hasta caducar.
 
-> **Pendiente:** sin correo configurado no hay "olvidé mi contraseña". Si un
-> cliente la pierde, se restablece con `npm run accounts password`.
+El correo lo envía [Resend](src/lib/email.ts). Sin `RESEND_API_KEY` no se rompe
+nada: el enlace se escribe en la consola, lo que permite probar el flujo completo
+de recuperación en local sin dar de alta un dominio.
 
 ---
 

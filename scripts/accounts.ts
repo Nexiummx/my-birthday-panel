@@ -27,6 +27,30 @@ if (!connectionString) {
 
 const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
 
+/**
+ * Fija la contraseña de una cuenta.
+ *
+ * Vive en una fila de `accounts` con providerId "credential", no en el usuario:
+ * así una misma cuenta puede tener a la vez contraseña y proveedores sociales.
+ * El hash sigue siendo bcrypt, que es lo que la configuración de Better Auth
+ * verifica.
+ */
+async function setCredential(userId: string, password: string) {
+  const hash = await bcrypt.hash(password, 12);
+  const existing = await prisma.account.findFirst({
+    where: { userId, providerId: "credential" },
+  });
+
+  if (existing) {
+    await prisma.account.update({ where: { id: existing.id }, data: { password: hash } });
+    return;
+  }
+
+  await prisma.account.create({
+    data: { accountId: userId, providerId: "credential", userId, password: hash },
+  });
+}
+
 /** Lee --clave valor de argv. */
 function flag(name: string): string | undefined {
   const index = process.argv.indexOf(`--${name}`);
@@ -81,7 +105,7 @@ async function create() {
   const email = requireEmail();
   const password = requireFlag("password");
   const quota = parseQuota(flag("quota") ?? "1");
-  const name = flag("name") ?? null;
+  const name = flag("name") ?? "";
 
   if (password.length < 8) {
     throw new Error("La contraseña debe tener al menos 8 caracteres");
@@ -92,9 +116,11 @@ async function create() {
     throw new Error(`Ya existe una cuenta con ${email}. Usa "quota" o "password" para cambiarla.`);
   }
 
-  await prisma.adminUser.create({
-    data: { email, name, eventQuota: quota, passwordHash: await bcrypt.hash(password, 12) },
+  const account = await prisma.adminUser.create({
+    data: { email, name, eventQuota: quota, emailVerified: true },
   });
+
+  await setCredential(account.id, password);
 
   console.log(`✔ Cuenta creada: ${email} · cupo de ${quota} evento(s) activo(s)`);
 }
@@ -128,11 +154,12 @@ async function setPassword() {
     throw new Error("La contraseña debe tener al menos 8 caracteres");
   }
 
-  await prisma.adminUser.update({
-    where: { email },
-    data: { passwordHash: await bcrypt.hash(password, 12) },
-  });
+  const account = await prisma.adminUser.findUnique({ where: { email } });
+  if (!account) {
+    throw new Error(`No existe una cuenta con ${email}`);
+  }
 
+  await setCredential(account.id, password);
   console.log(`✔ Contraseña actualizada para ${email}`);
 }
 

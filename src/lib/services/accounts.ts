@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import { hashPassword } from "@/lib/auth";
+import { setUserPassword } from "@/lib/services/credentials";
 import { ServiceError } from "@/lib/services/errors";
 import type { CreateAccountInput, UpdateAccountInput } from "@/lib/validations";
 
@@ -72,16 +72,20 @@ export async function createAccount(input: CreateAccountInput) {
     throw new ServiceError("Ya existe una cuenta con ese correo", 409);
   }
 
-  return prisma.adminUser.create({
+  const account = await prisma.adminUser.create({
     data: {
       email: input.email,
-      name: input.name?.trim() || null,
+      name: input.name?.trim() ?? "",
       eventQuota: input.eventQuota,
       isSuperAdmin: input.isSuperAdmin ?? false,
-      passwordHash: await hashPassword(input.password),
+      // La cuenta la crea el equipo, así que el correo se da por bueno.
+      emailVerified: true,
     },
     select: { id: true, email: true, name: true, eventQuota: true },
   });
+
+  await setUserPassword(account.id, input.password);
+  return account;
 }
 
 export async function updateAccount(id: string, actorId: string, input: UpdateAccountInput) {
@@ -103,14 +107,17 @@ export async function updateAccount(id: string, actorId: string, input: UpdateAc
     throw new ServiceError("No puedes quitarte a ti mismo el acceso de superadmin", 400);
   }
 
+  if (input.password) {
+    await setUserPassword(id, input.password);
+  }
+
   return prisma.adminUser.update({
     where: { id },
     data: {
       email: input.email,
-      name: input.name === undefined ? undefined : input.name.trim() || null,
+      name: input.name === undefined ? undefined : input.name.trim(),
       eventQuota: input.eventQuota,
       isSuperAdmin: input.isSuperAdmin,
-      passwordHash: input.password ? await hashPassword(input.password) : undefined,
     },
     select: { id: true, email: true, name: true, eventQuota: true },
   });

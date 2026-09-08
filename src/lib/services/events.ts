@@ -71,13 +71,17 @@ export async function createEvent(ownerId: string, input: CreateEventInput) {
   const { limit, used } = await getQuota(ownerId);
 
   if (used >= limit) {
-    throw new ServiceError(
-      limit === 1
-        ? "Tu plan incluye un evento a la vez. Archiva el actual o amplía tu plan para crear otro."
-        : `Tu plan incluye ${limit} eventos a la vez y ya tienes ${used}. Archiva uno o amplía tu plan.`,
-      // 402: el límite es comercial, no un error de la petición.
-      402
-    );
+    // Cupo 0 es el estado de una cuenta recién registrada, no un límite
+    // alcanzado: decirle "archiva uno" a quien no tiene ninguno no ayuda.
+    const message =
+      limit === 0
+        ? "Tu cuenta todavía no tiene eventos habilitados. Escríbenos para activar tu plan y empezar a invitar."
+        : limit === 1
+          ? "Tu plan incluye un evento a la vez. Archiva el actual o amplía tu plan para crear otro."
+          : `Tu plan incluye ${limit} eventos a la vez y ya tienes ${used}. Archiva uno o amplía tu plan.`;
+
+    // 402: el límite es comercial, no un error de la petición.
+    throw new ServiceError(message, 402);
   }
 
   // toEventData deja todo opcional (lo comparte la edición), así que los

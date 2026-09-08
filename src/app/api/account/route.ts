@@ -1,4 +1,4 @@
-import { createSession, requireSession } from "@/lib/auth";
+import { requireSession } from "@/lib/auth";
 import { handleError, ok, parseBody } from "@/lib/api";
 import { getAccount, updateProfile } from "@/lib/services/account";
 import { updateProfileSchema } from "@/lib/validations";
@@ -18,10 +18,9 @@ export async function PATCH(request: Request) {
     const input = await parseBody(request, updateProfileSchema);
     const account = await updateProfile(session.sub, input);
 
-    // El JWT lleva el correo dentro. Si no se reemite, la sesión sigue viva con
-    // el dato viejo hasta que caduque.
-    await createSession({ sub: account.id, email: account.email });
-
+    // No hace falta reemitir la sesión: Better Auth la guarda en base y solo
+    // referencia al usuario por id, así que el correo nuevo se lee solo en la
+    // siguiente petición. Con el JWT anterior sí había que rehacerla.
     return ok(account);
   } catch (error) {
     return handleError(error);
