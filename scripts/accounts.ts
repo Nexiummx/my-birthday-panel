@@ -10,6 +10,7 @@
  *   npx tsx scripts/accounts.ts quota  --email ana@cliente.mx --quota 3
  *   npx tsx scripts/accounts.ts password --email ana@cliente.mx --password "…"
  *   npx tsx scripts/accounts.ts super    --email tu@nexiummx.com --on
+ *   npx tsx scripts/accounts.ts transfer --event "Maya · 29" --to ana@cliente.mx
  *
  * `super` es el arranque en frío: sin una cuenta con superadmin nadie puede
  * entrar a /admin/clientes, y esa marca no se puede dar desde el panel.
@@ -176,12 +177,75 @@ async function setSuper() {
   console.log(`✔ ${email}: superadmin ${on ? "activado" : "desactivado"}`);
 }
 
+/**
+ * Cambia el dueño de un evento.
+ *
+ * Existe por la migración a multi-cuenta: los eventos anteriores quedaron a
+ * nombre de la cuenta más antigua, que no tiene por qué ser la que de verdad
+ * los gestiona. Antes que adivinarlo en la migración —donde no hay forma de
+ * leer el entorno ni de deshacerlo— es preferible un comando explícito.
+ */
+async function transfer() {
+  const needle = requireFlag("event");
+  const email = requireFlag("to").trim().toLowerCase();
+
+  const target = await prisma.adminUser.findUnique({ where: { email } });
+  if (!target) {
+    throw new Error(`No existe una cuenta con ${email}`);
+  }
+
+  // Se acepta el id exacto o parte del nombre, que es lo que uno recuerda.
+  const matches = await prisma.event.findMany({
+    where: { OR: [{ id: needle }, { name: { contains: needle, mode: "insensitive" } }] },
+    include: { owner: { select: { email: true } }, _count: { select: { invitations: true } } },
+  });
+
+  if (matches.length === 0) {
+    throw new Error(`Ningún evento coincide con "${needle}"`);
+  }
+  if (matches.length > 1) {
+    throw new Error(
+      `"${needle}" coincide con ${matches.length} eventos:\n` +
+        matches.map((e) => `  ${e.id}  ${e.name}`).join("\n") +
+        "\nRepite con el id exacto."
+    );
+  }
+
+  const event = matches[0];
+  if (event.ownerId === target.id) {
+    console.log(`✔ "${event.name}" ya es de ${email}. Sin cambios.`);
+    return;
+  }
+
+  await prisma.event.update({ where: { id: event.id }, data: { ownerId: target.id } });
+
+  console.log(
+    `✔ "${event.name}" (${event._count.invitations} invitaciones) pasó de ` +
+      `${event.owner.email} a ${email}`
+  );
+
+  // El cupo es una guardarraíl comercial, no de integridad: se avisa pero no
+  // se bloquea, porque el traspaso suele ser justo para arreglar un reparto.
+  if (event.archivedAt === null) {
+    const active = await prisma.event.count({
+      where: { ownerId: target.id, archivedAt: null },
+    });
+    if (active > target.eventQuota) {
+      console.warn(
+        `⚠  ${email} queda con ${active} eventos activos y un cupo de ${target.eventQuota}. ` +
+          `No podrá crear más hasta que le subas el cupo o archive alguno.`
+      );
+    }
+  }
+}
+
 const COMMANDS: Record<string, () => Promise<void>> = {
   list,
   create,
   quota: setQuota,
   password: setPassword,
   super: setSuper,
+  transfer,
 };
 
 async function main() {
