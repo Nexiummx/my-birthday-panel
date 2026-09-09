@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { listPhotos, photoStats } from "@/lib/services/photos";
 import { toPublicPhoto, type PublicPhoto } from "@/lib/public-photo";
+import { selectForRewind } from "@/lib/rewind-selection";
 import { formatInvitationDate } from "@/lib/utils";
 import type { EventThemeValue } from "@/lib/validations";
 
@@ -58,7 +59,12 @@ export async function buildRewind(event: {
     prisma.invitation.count({ where: { eventId: event.id } }),
     prisma.rsvp.findMany({
       where: { status: "CONFIRMED", invitation: { eventId: event.id } },
-      select: { comment: true, guestCount: true, invitation: { select: { guestName: true } } },
+      select: {
+        comment: true,
+        guestCount: true,
+        rewindOrder: true,
+        invitation: { select: { guestName: true } },
+      },
       orderBy: { respondedAt: "asc" },
     }),
     prisma.rsvp.aggregate({
@@ -97,11 +103,17 @@ export async function buildRewind(event: {
     });
   }
 
-  // Los mensajes más largos son los que alguien se tomó el tiempo de escribir.
-  const messages = confirmedRsvps
-    .filter((rsvp) => rsvp.comment && rsvp.comment.trim().length > 12)
-    .sort((a, b) => (b.comment?.length ?? 0) - (a.comment?.length ?? 0))
-    .slice(0, MAX_MESSAGES);
+  // Manda lo que eligió el anfitrión; si no eligió nada, los más largos, que
+  // son los que alguien se tomó el tiempo de escribir.
+  const withComment = confirmedRsvps.filter(
+    (rsvp) => rsvp.comment && rsvp.comment.trim().length > 0
+  );
+  const messages = selectForRewind(withComment, () =>
+    [...withComment]
+      .filter((rsvp) => (rsvp.comment?.trim().length ?? 0) > 12)
+      .sort((a, b) => (b.comment?.length ?? 0) - (a.comment?.length ?? 0))
+      .slice(0, MAX_MESSAGES)
+  );
 
   for (const message of messages) {
     cards.push({
@@ -123,17 +135,28 @@ export async function buildRewind(event: {
           : null,
     });
 
-    const publicPhotos = photos.map(toPublicPhoto);
+    // Las que eligió el anfitrión, en su orden; si no eligió, las más recientes.
+    const elegidas = selectForRewind(photos, () =>
+      photos.slice(0, PHOTOS_PER_CARD * MAX_PHOTO_CARDS + 1)
+    );
+    const publicPhotos = elegidas.map(toPublicPhoto);
 
-    // Una a pantalla completa antes de las rejillas. Se prefiere una con pie:
-    // si alguien se molestó en escribirlo, esa foto tiene algo que contar.
-    const hero = publicPhotos.find((photo) => photo.caption) ?? publicPhotos[0];
+    // Una a pantalla completa antes de las rejillas. Si el anfitrión eligió, la
+    // primera de su lista es la portada: es la decisión que ya tomó. Si no, se
+    // prefiere una con pie — quien se molestó en escribirlo tiene algo que contar.
+    const curada = photos.some((photo) => photo.rewindOrder !== null);
+    const hero = curada
+      ? publicPhotos[0]
+      : (publicPhotos.find((photo) => photo.caption) ?? publicPhotos[0]);
+
     if (hero) {
       cards.push({ kind: "hero", photo: hero });
     }
 
+    // La portada no se repite en las rejillas.
+    const resto = publicPhotos.filter((photo) => photo.id !== hero?.id);
     for (let index = 0; index < MAX_PHOTO_CARDS; index += 1) {
-      const slice = publicPhotos.slice(index * PHOTOS_PER_CARD, (index + 1) * PHOTOS_PER_CARD);
+      const slice = resto.slice(index * PHOTOS_PER_CARD, (index + 1) * PHOTOS_PER_CARD);
       if (slice.length === 0) break;
       cards.push({ kind: "photos", photos: slice });
     }

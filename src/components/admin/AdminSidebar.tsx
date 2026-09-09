@@ -6,6 +6,7 @@ import { useState } from "react";
 import {
   CalendarCheck,
   CalendarDays,
+  Clapperboard,
   Images,
   Inbox,
   LayoutDashboard,
@@ -26,6 +27,7 @@ const LINKS = [
   { href: "/admin/invitaciones", label: "Invitaciones", icon: Mail },
   { href: "/admin/confirmaciones", label: "Confirmaciones", icon: CalendarCheck },
   { href: "/admin/fotos", label: "Fotos", icon: Images },
+  { href: "/admin/recuerdo", label: "Recuerdo", icon: Clapperboard },
   { href: "/admin/evento", label: "Eventos", icon: CalendarDays },
   { href: "/admin/soporte", label: "Soporte", icon: LifeBuoy },
   { href: "/admin/cuenta", label: "Mi cuenta", icon: UserCog },

@@ -487,3 +487,13 @@ export type RegisterPhotoInput = z.infer<typeof registerPhotoSchema>;
 /** Acciones del anfitrión sobre una foto. */
 export const updatePhotoSchema = z.object({ hidden: z.boolean() });
 export type UpdatePhotoInput = z.infer<typeof updatePhotoSchema>;
+
+/**
+ * Selección del recuerdo. Llega la lista completa y en orden, no un cambio
+ * suelto: ver saveCuration.
+ */
+export const saveCurationSchema = z.object({
+  photoIds: z.array(z.string().trim().min(1).max(40)).max(50),
+  messageIds: z.array(z.string().trim().min(1).max(40)).max(50),
+});
+export type SaveCurationInput = z.infer<typeof saveCurationSchema>;

@@ -561,6 +561,43 @@ entero y en un móvil en horizontal el texto no cabía.
 Con **reducir movimiento** activo no hay animación ni avance automático: las
 pantallas se pasan a mano y todo está visible desde el primer frame.
 
+### Qué sale y qué no
+
+El anfitrión decide desde **`/admin/recuerdo`**: marca fotos y mensajes, los
+ordena, y ve el resultado. La regla es una sola y vale para los dos
+([`lib/rewind-selection.ts`](src/lib/rewind-selection.ts)):
+
+> Si **nadie** tiene posición asignada, elige el sistema.
+> Si **alguno** la tiene, salen solo esos, en ese orden.
+
+Eso es lo que permite que el recuerdo funcione sin tocar nada —el caso normal—
+y que, en cuanto el anfitrión quiera mandar, no tenga que descartar cincuenta
+fotos una por una para quedarse con seis. Vaciar la selección devuelve el
+evento a automático, y hay un botón para eso.
+
+Un detalle que no es casual: `rewindOrder` es **NULL** por defecto, así que la
+migración no cambió el recuerdo de ningún evento que ya existía.
+
+**El orden es contenido**: la primera foto elegida es la portada a sangre. Si
+no hay selección, la portada se prefiere entre las que tengan pie — quien se
+molestó en escribirlo tiene algo que contar.
+
+El panel guarda **la lista completa**, no cambios sueltos: encender, apagar y
+mover son la misma operación, en una transacción que borra todas las posiciones
+y reescribe las que quedan. Idempotente, y sin forma de dejar posiciones
+huérfanas o repetidas. Las posiciones se guardan compactas desde 1, para que el
+número que ve el anfitrión sea el que hay en la base.
+
+Los topes (**13 fotos**, **5 mensajes**) salen de la forma del recuerdo: una
+portada y tres rejillas de cuatro. Pasado eso, lo de más no se vería y el
+anfitrión creería que sí, así que se rechaza con un mensaje en vez de tragarlo
+en silencio.
+
+Los ids llegan del cliente, así que se comprueban contra el evento antes de
+escribir: una foto de otra cuenta se descarta, no se guarda.
+
+---
+
 ### Fotos de prueba
 
 Para ver cómo se comportan la galería y el recuerdo con material de verdad:
@@ -736,8 +773,9 @@ src/
     f/[code]/              Subida de fotos (el QR de las mesas)
     r/[code]/              El recuerdo, en formato stories
     admin/login/           Acceso
-    admin/(panel)/         Resumen · invitaciones · confirmaciones · evento ·
-                           soporte · cuenta · clientes y tickets (superadmin)
+    admin/(panel)/         Resumen · invitaciones · confirmaciones · fotos ·
+                           recuerdo · evento · soporte · cuenta · clientes y
+                           tickets (superadmin)
     api/                   Route Handlers
   components/
     invitation/            InvitationCard · InvitationInfo · RSVPModal ·
@@ -755,8 +793,9 @@ src/
   lib/
     services/              Lógica de negocio (account · accounts · events ·
                            invitations · rsvp · stats · tickets · photos ·
-                           rewind)
+                           rewind · rewind-curation)
     pricing.ts             Planes, precios y contacto comercial
+    rewind-selection.ts    Qué sale en el recuerdo (curado o automático)
     storage.ts             Almacenamiento (supabase | local)
     image.ts               Compresión de fotos en el navegador
     share-code.ts          Código público del evento
@@ -811,6 +850,7 @@ Todas las respuestas siguen el mismo formato: `{ data }` en éxito y
 | `POST` | `/api/public/photos` | Público | Da de alta la foto ya subida. |
 | `PATCH` | `/api/photos/[id]` | Admin | Oculta o vuelve a mostrar una foto. |
 | `DELETE` | `/api/photos/[id]` | Admin | Borra la foto y su archivo. |
+| `PUT` | `/api/rewind` | Admin | Guarda qué fotos y mensajes salen en el recuerdo, y en qué orden. |
 | `PUT` | `/api/media/subir` | Firmada | Solo desarrollo: recibe el archivo. |
 | `GET` | `/api/media/[...path]` | Público | Solo desarrollo: sirve el archivo. |
 
@@ -850,8 +890,8 @@ invitados, la generación de slugs —que son el secreto de cada invitación, y 
 pueden repetirse ni siquiera dentro de un mismo lote—, la coherencia del
 catálogo de temas y de los planes, la regla de cambio de fecha —incluidos los
 casos que suelen fallar: el cruce de año, febrero bisiesto y guardar el
-formulario sin tocar la fecha— y el código público del evento, con su reparto
-de símbolos.
+formulario sin tocar la fecha— el código público del evento con su reparto de
+símbolos, y la regla de selección del recuerdo.
 
 > **Pendiente:** no hay pruebas de integración del aislamiento entre cuentas,
 > que es la garantía más importante del sistema. Necesitan una base de datos de

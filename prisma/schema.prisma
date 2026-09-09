@@ -223,8 +223,12 @@ model Rsvp {
   guestCount   Int              @default(0)
   comment      String?
   respondedAt  DateTime         @default(now())
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
+
+  /// Posición del mensaje en el recuerdo. Misma regla que en Photo: NULL en
+  /// todos = selección automática; en cuanto hay uno, manda el anfitrión.
+  rewindOrder Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   invitation Invitation @relation(fields: [invitationId], references: [id], onDelete: Cascade)
 
@@ -327,12 +331,20 @@ model Photo {
   /// tiene que ser reversible y no destruye el recuerdo de nadie.
   hiddenAt DateTime?
 
+  /// Posición en el recuerdo, si el anfitrión la eligió a mano.
+  /// NULL = no elegida. Cuando NINGUNA foto del evento tiene posición, el
+  /// recuerdo las elige solo; en cuanto hay una, manda la selección. Así el
+  /// recuerdo funciona sin tocar nada y el anfitrión puede tomar el control sin
+  /// tener que descartar una por una.
+  rewindOrder Int?
+
   createdAt DateTime @default(now())
 
   event      Event       @relation(fields: [eventId], references: [id], onDelete: Cascade)
   invitation Invitation? @relation(fields: [invitationId], references: [id], onDelete: SetNull)
 
   @@index([eventId, hiddenAt])
+  @@index([eventId, rewindOrder])
   @@index([invitationId])
   @@map("photos")
 }
