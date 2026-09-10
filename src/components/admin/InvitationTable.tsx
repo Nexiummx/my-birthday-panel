@@ -125,7 +125,7 @@ export function InvitationTable({ invitations }: { invitations: AdminInvitation[
                   </td>
                   <td className="px-4 py-3">
                     <code className="rounded-md bg-cream-200/70 px-2 py-1 font-mono text-xs text-ink-700">
-                      /i/{invitation.slug}
+                      {invitation.path}
                     </code>
                   </td>
                   <td className="px-4 py-3 font-sans text-sm text-ink-700">
@@ -144,7 +144,7 @@ export function InvitationTable({ invitations }: { invitations: AdminInvitation[
                     <div className="flex items-center gap-1">
                       <IconAction
                         label={`Ver invitación de ${invitation.guestName}`}
-                        href={`/i/${invitation.slug}`}
+                        href={invitation.path}
                       >
                         <ExternalLink className="size-4" aria-hidden="true" />
                       </IconAction>

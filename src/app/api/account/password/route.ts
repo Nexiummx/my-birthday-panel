@@ -7,8 +7,10 @@ export async function POST(request: Request) {
   try {
     const session = await requireSession();
     const input = await parseBody(request, changePasswordSchema);
-    await changePassword(session.sub, input);
-    return ok({ success: true });
+    // El token de esta sesión viaja para que no se cierre a sí misma: ver
+    // changePassword.
+    const { closedSessions } = await changePassword(session.sub, input, session.token);
+    return ok({ success: true, closedSessions });
   } catch (error) {
     return handleError(error);
   }

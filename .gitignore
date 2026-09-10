@@ -50,3 +50,8 @@ next-env.d.ts
 
 # Fotos del controlador local de almacenamiento (solo desarrollo)
 .uploads/
+
+# Respaldos de base de datos. Llevan datos personales de invitados reales.
+# La regla es específica y no "*.sql" a propósito: eso ignoraría también las
+# migraciones de prisma/migrations/, que SÍ tienen que ir versionadas.
+respaldo-*.sql

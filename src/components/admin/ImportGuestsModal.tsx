@@ -7,10 +7,10 @@ import { Modal } from "@/components/ui/Modal";
 import { Field, Textarea } from "@/components/ui/Field";
 import { parseGuestList } from "@/lib/validations";
 
-const EXAMPLE = `Mariana López, 2
-Carlos Hernández, 1
+const EXAMPLE = `Mariana López, 2, 55 1234 5678
+Carlos Hernández, 1, 6181234567
 Ana Martínez, 4
-Sofía García`;
+Sofía García, 5559876543`;
 
 export function ImportGuestsModal({
   open,
@@ -31,6 +31,7 @@ export function ImportGuestsModal({
   const valid = parsed.filter((row) => !row.error);
   const invalid = parsed.filter((row) => row.error);
   const passes = valid.reduce((total, row) => total + row.guestCount, 0);
+  const withPhone = valid.filter((row) => row.phone).length;
 
   if (!open) return null;
 
@@ -43,7 +44,11 @@ export function ImportGuestsModal({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          guests: valid.map(({ guestName, guestCount }) => ({ guestName, guestCount })),
+          guests: valid.map(({ guestName, guestCount, phone }) => ({
+            guestName,
+            guestCount,
+            phone,
+          })),
         }),
       });
 
@@ -73,7 +78,7 @@ export function ImportGuestsModal({
         <Field
           label="Lista de invitados"
           htmlFor="guest-list"
-          hint="Formato: nombre, pases. Si no pones número, se asume 1 pase. Puedes pegar directo desde una hoja de cálculo."
+          hint="Formato: nombre, pases, teléfono. Las columnas se reconocen por su forma, así que puedes poner solo el nombre, o el nombre y el teléfono. Sin número de pases se asume 1. Puedes pegar directo desde una hoja de cálculo."
         >
           <Textarea
             id="guest-list"
@@ -92,6 +97,18 @@ export function ImportGuestsModal({
               {valid.length === 1 ? "invitación" : "invitaciones"} · {passes}{" "}
               {passes === 1 ? "pase" : "pases"} en total
             </p>
+
+            {/* El teléfono decide si mandar la invitación será un toque o un
+                copiar y pegar, así que conviene verlo antes de importar. */}
+            {valid.length > 0 && (
+              <p className="mt-1 font-sans text-xs text-ink-500">
+                {withPhone === valid.length
+                  ? "Todas con teléfono: podrás mandarlas por WhatsApp de un toque."
+                  : withPhone === 0
+                    ? "Ninguna trae teléfono. Puedes añadirlo después, invitación por invitación."
+                    : `${withPhone} con teléfono, ${valid.length - withPhone} sin él.`}
+              </p>
+            )}
 
             {invalid.length > 0 && (
               <div className="mt-3 space-y-1.5">

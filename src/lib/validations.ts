@@ -29,6 +29,9 @@ export const createInvitationSchema = z.object({
     .optional()
     .or(z.literal("")),
   eventId: z.string().min(1).optional(),
+  /// Teléfono para mandar la invitación por WhatsApp de un toque. Se guarda
+  /// tal cual: normalizarlo aquí le impediría corregir lo que él ve bien.
+  phone: z.string().trim().max(30, "El teléfono es demasiado largo").optional(),
 });
 export type CreateInvitationInput = z.infer<typeof createInvitationSchema>;
 
@@ -89,9 +92,16 @@ export const rsvpFormSchema = rsvpFields.refine(requiresGuests.check, {
 });
 export type RsvpFormInput = z.infer<typeof rsvpFormSchema>;
 
-/** Payload que recibe la API: el formulario más el slug de la invitación. */
+/**
+ * Payload que recibe la API: el formulario más las dos mitades de la ruta de la
+ * invitación. El evento viaja también porque el slug del invitado solo es único
+ * dentro de su evento.
+ */
 export const rsvpSchema = rsvpFields
-  .extend({ slug: z.string().min(1, "Invitación inválida") })
+  .extend({
+    evento: z.string("Invitación inválida").min(1, "Invitación inválida"),
+    slug: z.string("Invitación inválida").min(1, "Invitación inválida"),
+  })
   .refine(requiresGuests.check, {
     message: requiresGuests.message,
     path: [...requiresGuests.path],
@@ -115,8 +125,30 @@ const optionalUrl = z
   .union([z.url("Debe ser un enlace válido (https://…)"), z.literal("")])
   .optional();
 
+/**
+ * Ruta pública del evento: /e/[slug]/i/[invitado].
+ *
+ * Es opcional en todas partes porque tiene un valor de fábrica sacado del
+ * nombre; el anfitrión solo la escribe si quiere retocarla.
+ */
+const eventSlugField = z
+  .union([
+    z
+      .string()
+      .trim()
+      .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "El enlace solo admite minúsculas, números y guiones")
+      .min(3, "El enlace es demasiado corto")
+      .max(60, "El enlace es demasiado largo"),
+    // El formulario manda "" cuando el campo no se pinta —al crear— y cuando el
+    // anfitrión lo vacía. En los dos casos significa "el de siempre", no un
+    // enlace inválido: sin esta rama, crear un evento fallaba la validación.
+    z.literal(""),
+  ])
+  .optional();
+
 /** Alta de evento desde el panel. */
 export const createEventSchema = z.object({
+  slug: eventSlugField,
   name: z
     .string()
     .trim()
@@ -139,6 +171,9 @@ export const createEventSchema = z.object({
   description: optionalText(400, "La descripción no puede superar 400 caracteres"),
   invitationImage: optionalUrl,
   theme: z.enum(EVENT_THEMES),
+  inviteMessage: optionalText(600, "El mensaje es demasiado largo"),
+  giftRegistryUrl: optionalUrl,
+  giftRegistryLabel: optionalText(60, "Máximo 60 caracteres"),
   sealedEyebrow: optionalText(60, "Máximo 60 caracteres"),
   sealedHeadline: optionalText(140, "Máximo 140 caracteres"),
   sealedCta: optionalText(40, "Máximo 40 caracteres"),
@@ -323,6 +358,7 @@ export const importInvitationsSchema = z.object({
           .int("Debe ser un número entero")
           .min(1, "Debe haber al menos 1 pase")
           .max(20, "Máximo 20 pases por invitación"),
+        phone: z.string().trim().max(30).optional(),
       })
     )
     .min(1, "No hay invitados que importar")
@@ -334,6 +370,8 @@ export type ImportInvitationsInput = z.infer<typeof importInvitationsSchema>;
 export interface ParsedGuest {
   guestName: string;
   guestCount: number;
+  /** Teléfono tal y como lo escribió el anfitrión, si venía. */
+  phone?: string;
   /** Motivo por el que la fila no se puede importar, si lo hay. */
   error?: string;
 }
@@ -341,20 +379,34 @@ export interface ParsedGuest {
 /**
  * Interpreta el texto pegado.
  *
- * Acepta "Nombre, pases", "Nombre; pases", tabulador —que es lo que sale al
- * copiar de una hoja de cálculo— o solo el nombre, en cuyo caso se asume un
- * pase. Las filas problemáticas se devuelven marcadas en vez de descartarse:
- * es preferible que el anfitrión vea qué falló a que desaparezcan en silencio.
+ * Acepta "Nombre, pases, teléfono" en cualquier combinación, con coma, punto y
+ * coma o tabulador —que es lo que sale al copiar de una hoja de cálculo—. Las
+ * columnas se reconocen por su forma y no por su posición, porque una lista de
+ * verdad viene como venga: "Ana, 2", "Ana, 5512345678" y "Ana, 2, 55 1234 5678"
+ * son todas válidas y quieren decir cosas distintas.
+ *
+ * Las filas problemáticas se devuelven marcadas en vez de descartarse: es
+ * preferible que el anfitrión vea qué falló a que desaparezcan en silencio.
  */
+
+/** ¿Es un número de pases? Un entero pequeño, no un teléfono. */
+function looksLikePasses(value: string): boolean {
+  return /^\d{1,2}$/.test(value) && Number(value) >= 1 && Number(value) <= 20;
+}
+
+/** ¿Tiene pinta de teléfono? Diez dígitos o más, con la puntuación que sea. */
+function looksLikePhone(value: string): boolean {
+  return value.replace(/\D/g, "").length >= 10;
+}
+
 export function parseGuestList(raw: string): ParsedGuest[] {
   return raw
     .split("\n")
     .map((line) => line.trim())
     .filter((line) => line.length > 0)
     .map((line) => {
-      const parts = line.split(/[\t,;]/).map((part) => part.trim());
-      const guestName = parts[0] ?? "";
-      const rest = parts[1];
+      const [rawName, ...rest] = line.split(/[\t,;]/).map((part) => part.trim());
+      const guestName = rawName ?? "";
 
       if (guestName.length < 2) {
         return { guestName: line, guestCount: 1, error: "Nombre demasiado corto" };
@@ -363,17 +415,31 @@ export function parseGuestList(raw: string): ParsedGuest[] {
         return { guestName, guestCount: 1, error: "Nombre demasiado largo" };
       }
 
-      // Sin segunda columna se asume un pase, que es el caso más común.
-      if (!rest) {
-        return { guestName, guestCount: 1 };
+      let guestCount: number | null = null;
+      let phone: string | undefined;
+
+      for (const part of rest) {
+        if (part === "") continue;
+
+        if (guestCount === null && looksLikePasses(part)) {
+          guestCount = Number(part);
+          continue;
+        }
+        if (phone === undefined && looksLikePhone(part)) {
+          phone = part;
+          continue;
+        }
+
+        return {
+          guestName,
+          guestCount: guestCount ?? 1,
+          phone,
+          error: `No entendí "${part}": se esperaban pases (1-20) o un teléfono`,
+        };
       }
 
-      const guestCount = Number(rest);
-      if (!Number.isInteger(guestCount) || guestCount < 1 || guestCount > 20) {
-        return { guestName, guestCount: 1, error: `"${rest}" no es un número de pases válido` };
-      }
-
-      return { guestName, guestCount };
+      // Sin número de pases se asume uno, que es el caso más común.
+      return { guestName, guestCount: guestCount ?? 1, ...(phone ? { phone } : {}) };
     });
 }
 
@@ -441,7 +507,11 @@ export const resolveDateSchema = z.object({
 });
 export type ResolveDateInput = z.infer<typeof resolveDateSchema>;
 
-/* ─────────────────────────────── Fotos ─────────────────────────────── */
+/* ──────────────────────────── Fotos y videos ───────────────────────── */
+
+/** Qué se está subiendo. Sin él todo es foto, que es lo que había antes. */
+export const mediaKindSchema = z.enum(["PHOTO", "VIDEO"]);
+export type MediaKindValue = z.infer<typeof mediaKindSchema>;
 
 /**
  * Las dos puertas de subida. Al menos una tiene que venir, y el servicio decide
@@ -450,12 +520,21 @@ export type ResolveDateInput = z.infer<typeof resolveDateSchema>;
  */
 const photoSource = {
   code: z.string().trim().max(40).optional(),
+  /** Mitad de evento de la ruta. Solo tiene sentido junto a `slug`. */
+  evento: z.string().trim().max(60).optional(),
   slug: z.string().trim().max(120).optional(),
 };
 
-const requireSource = (value: { code?: string; slug?: string }, ctx: z.RefinementCtx) => {
+const requireSource = (
+  value: { code?: string; evento?: string; slug?: string },
+  ctx: z.RefinementCtx
+) => {
   if (!value.code && !value.slug) {
     ctx.addIssue({ code: "custom", message: "Falta el evento", path: ["code"] });
+  }
+  // Media puerta no abre: sin el evento, el slug del invitado es ambiguo.
+  if (value.slug && !value.evento) {
+    ctx.addIssue({ code: "custom", message: "Falta el evento", path: ["evento"] });
   }
 };
 
@@ -463,6 +542,7 @@ const requireSource = (value: { code?: string; slug?: string }, ctx: z.Refinemen
 export const signPhotoSchema = z
   .object({
     ...photoSource,
+    kind: mediaKindSchema.optional(),
     contentType: z.string().trim().min(1, "Falta el tipo de archivo").max(60),
     bytes: z.coerce.number<number>().int().positive("El archivo está vacío"),
   })
@@ -473,16 +553,59 @@ export type SignPhotoInput = z.infer<typeof signPhotoSchema>;
 export const registerPhotoSchema = z
   .object({
     ...photoSource,
+    kind: mediaKindSchema.optional(),
     path: z.string().trim().min(1).max(300),
     width: z.coerce.number<number>().int().positive(),
     height: z.coerce.number<number>().int().positive(),
     bytes: z.coerce.number<number>().int().positive(),
+    /// Solo videos: la portada ya subida y cuánto dura el clip. El tope está
+    /// medio segundo por encima del de video.ts para absorber el redondeo del
+    /// grabador, que casi nunca corta exactamente donde se le pide.
+    posterPath: z.string().trim().min(1).max(300).optional(),
+    durationMs: z.coerce.number<number>().int().positive().max(30_500).optional(),
     /// Solo se usa cuando se entra por el QR: con invitación manda su nombre.
     authorName: z.string().trim().max(80).optional(),
     caption: z.string().trim().max(140, "El pie de foto es demasiado largo").optional(),
   })
   .superRefine(requireSource);
 export type RegisterPhotoInput = z.infer<typeof registerPhotoSchema>;
+
+/* ──────────────────────────────── Pagos ────────────────────────────── */
+
+/** Solo el id del plan: el precio sale del catálogo del servidor, nunca del
+ *  navegador. Si viniera de aquí, se podría comprar cualquier plan por un peso. */
+export const checkoutSchema = z.object({
+  planId: z.string().trim().min(1, "Falta el plan").max(40),
+});
+export type CheckoutInput = z.infer<typeof checkoutSchema>;
+
+/* ──────────────────────── Música del recuerdo ──────────────────────── */
+
+/** Tope del desplazamiento: dos horas cubre cualquier canción con holgura. */
+const MAX_START_MS = 2 * 60 * 60 * 1000;
+
+/** Un MP3 de cuatro minutos a 192 kb/s pesa unos 5,8 MB. Vive aquí, y no en el
+ *  servicio, para que el navegador pueda avisar antes de subir doce megas en
+ *  balde; el servidor lo vuelve a comprobar de todas formas. */
+export const MAX_AUDIO_BYTES = 12 * 1024 * 1024;
+
+export const signSoundtrackSchema = z.object({
+  contentType: z.string().trim().min(1, "Falta el tipo de archivo").max(60),
+  bytes: z.coerce.number<number>().int().positive("El archivo está vacío"),
+});
+export type SignSoundtrackInput = z.infer<typeof signSoundtrackSchema>;
+
+export const saveSoundtrackSchema = z.object({
+  path: z.string().trim().min(1).max(300),
+  name: z.string().trim().min(1, "Falta el nombre del archivo").max(120),
+  startMs: z.coerce.number<number>().int().min(0).max(MAX_START_MS),
+});
+export type SaveSoundtrackInput = z.infer<typeof saveSoundtrackSchema>;
+
+export const soundtrackStartSchema = z.object({
+  startMs: z.coerce.number<number>().int().min(0).max(MAX_START_MS),
+});
+export type SoundtrackStartInput = z.infer<typeof soundtrackStartSchema>;
 
 /** Acciones del anfitrión sobre una foto. */
 export const updatePhotoSchema = z.object({ hidden: z.boolean() });
@@ -495,5 +618,22 @@ export type UpdatePhotoInput = z.infer<typeof updatePhotoSchema>;
 export const saveCurationSchema = z.object({
   photoIds: z.array(z.string().trim().min(1).max(40)).max(50),
   messageIds: z.array(z.string().trim().min(1).max(40)).max(50),
+  /// Opcional para no romper a quien mande el cuerpo de antes: un panel sin
+  /// actualizar sigue guardando fotos y mensajes sin tocar los videos.
+  clipIds: z.array(z.string().trim().min(1).max(40)).max(50).optional(),
 });
 export type SaveCurationInput = z.infer<typeof saveCurationSchema>;
+
+/** Marcar invitaciones como enviadas, en bloque. */
+export const markSentSchema = z.object({
+  ids: z.array(z.string().trim().min(1).max(40)).min(1, "No hay invitaciones").max(500),
+  sent: z.boolean(),
+});
+export type MarkSentInput = z.infer<typeof markSentSchema>;
+
+/** Registrar la llegada de un invitado el día del evento. */
+export const checkInSchema = z.object({
+  /// Cuántas personas de su pase llegaron. 0 deshace la entrada.
+  count: z.coerce.number<number>().int().min(0).max(20),
+});
+export type CheckInInput = z.infer<typeof checkInSchema>;

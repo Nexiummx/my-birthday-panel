@@ -9,12 +9,14 @@ import { Field, Input, Textarea } from "@/components/ui/Field";
 import { Modal } from "@/components/ui/Modal";
 import { ThemePicker } from "@/components/admin/ThemePicker";
 import { getTheme } from "@/lib/themes";
+import { DEFAULT_INVITE_MESSAGE } from "@/lib/invite-message";
 import type { DatePolicy } from "@/lib/event-date";
 import { createEventSchema, type CreateEventInput } from "@/lib/validations";
 
 /** Lo que el formulario necesita saber de un evento ya existente. */
 export interface EditableEvent {
   id: string;
+  slug: string;
   name: string;
   date: string;
   time: string;
@@ -25,6 +27,9 @@ export interface EditableEvent {
   description: string | null;
   invitationImage: string | null;
   theme: string;
+  inviteMessage: string | null;
+  giftRegistryUrl: string | null;
+  giftRegistryLabel: string | null;
   sealedEyebrow: string | null;
   sealedHeadline: string | null;
   sealedCta: string | null;
@@ -57,6 +62,7 @@ function EventFormDialog({ onClose, onSaved, event }: EventFormProps) {
   } = useForm<CreateEventInput>({
     resolver: zodResolver(createEventSchema),
     defaultValues: {
+      slug: event?.slug ?? "",
       name: event?.name ?? "",
       // <input type="date"> habla en YYYY-MM-DD; la fecha se guarda en UTC.
       date: (event ? new Date(event.date).toISOString().slice(0, 10) : "") as unknown as Date,
@@ -68,6 +74,9 @@ function EventFormDialog({ onClose, onSaved, event }: EventFormProps) {
       description: event?.description ?? "",
       invitationImage: event?.invitationImage ?? "",
       theme: (event?.theme as CreateEventInput["theme"]) ?? "BOSQUE",
+      inviteMessage: event?.inviteMessage ?? "",
+      giftRegistryUrl: event?.giftRegistryUrl ?? "",
+      giftRegistryLabel: event?.giftRegistryLabel ?? "",
       sealedEyebrow: event?.sealedEyebrow ?? "",
       sealedHeadline: event?.sealedHeadline ?? "",
       sealedCta: event?.sealedCta ?? "",
@@ -143,6 +152,30 @@ function EventFormDialog({ onClose, onSaved, event }: EventFormProps) {
             {...register("name")}
           />
         </Field>
+
+        {/* Solo al editar: al crear todavía no hay nada que enseñar y el valor
+            de fábrica sale del nombre. */}
+        {isEdit && (
+          <Field
+            label="Enlace del evento"
+            htmlFor="event-slug"
+            error={errors.slug?.message}
+            hint="Cámbialo antes de enviar las invitaciones: las que ya salieron apuntan al enlace anterior."
+          >
+            <div className="flex items-center gap-1.5">
+              <span className="shrink-0 font-mono text-xs text-ink-500">/e/</span>
+              <Input
+                id="event-slug"
+                placeholder="maya-29"
+                spellCheck={false}
+                autoCapitalize="none"
+                aria-invalid={Boolean(errors.slug)}
+                {...register("slug")}
+              />
+              <span className="shrink-0 font-mono text-xs text-ink-500">/i/…</span>
+            </div>
+          </Field>
+        )}
 
         <div className="grid gap-5 sm:grid-cols-2">
           <Field
@@ -240,6 +273,58 @@ function EventFormDialog({ onClose, onSaved, event }: EventFormProps) {
             />
           </Field>
         </div>
+
+        <div className="grid gap-5 sm:grid-cols-2">
+          <Field
+            label="Mesa de regalos"
+            htmlFor="event-gift-url"
+            error={errors.giftRegistryUrl?.message}
+            hint="Opcional. Aparece como un enlace en la invitación."
+          >
+            <Input
+              id="event-gift-url"
+              type="url"
+              placeholder="https://mesaderegalos.liverpool.com.mx/…"
+              aria-invalid={Boolean(errors.giftRegistryUrl)}
+              {...register("giftRegistryUrl")}
+            />
+          </Field>
+
+          <Field
+            label="Cómo llamarla"
+            htmlFor="event-gift-label"
+            error={errors.giftRegistryLabel?.message}
+            hint="Opcional. Por defecto, “Mesa de regalos”."
+          >
+            <Input
+              id="event-gift-label"
+              placeholder="Mesa de regalos · Liverpool"
+              aria-invalid={Boolean(errors.giftRegistryLabel)}
+              {...register("giftRegistryLabel")}
+            />
+          </Field>
+        </div>
+
+        <Field
+          label="Mensaje al enviar por WhatsApp"
+          htmlFor="event-invite-message"
+          error={errors.inviteMessage?.message}
+          hint={
+            <>
+              Se usa en <span className="text-ink-700">Envío</span>, una vez por invitado.
+              Puedes usar {"{invitado}"}, {"{evento}"}, {"{fecha}"} y {"{enlace}"}. Deja el
+              enlace al final: WhatsApp enseña la miniatura del último que encuentre.
+            </>
+          }
+        >
+          <Textarea
+            id="event-invite-message"
+            rows={3}
+            placeholder={DEFAULT_INVITE_MESSAGE}
+            aria-invalid={Boolean(errors.inviteMessage)}
+            {...register("inviteMessage")}
+          />
+        </Field>
 
         <Field
           label="Descripción"

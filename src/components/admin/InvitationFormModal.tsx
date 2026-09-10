@@ -40,6 +40,7 @@ function InvitationFormDialog({ onClose, onSaved, invitation }: InvitationFormDi
     defaultValues: {
       guestName: invitation?.guestName ?? "",
       guestCount: invitation?.guestCount ?? 1,
+      phone: invitation?.phone ?? "",
       personalMessage: invitation?.personalMessage ?? "",
     },
   });
@@ -73,7 +74,7 @@ function InvitationFormDialog({ onClose, onSaved, invitation }: InvitationFormDi
       title={isEdit ? "Editar invitación" : "Crear invitación"}
       description={
         isEdit
-          ? `Enlace público: /i/${invitation?.slug}`
+          ? `Enlace público: ${invitation?.path}`
           : "El enlace se genera automáticamente a partir del nombre."
       }
     >
@@ -102,6 +103,23 @@ function InvitationFormDialog({ onClose, onSaved, invitation }: InvitationFormDi
             max={20}
             aria-invalid={Boolean(errors.guestCount)}
             {...register("guestCount")}
+          />
+        </Field>
+
+        <Field
+          label="Teléfono"
+          htmlFor="guest-phone"
+          error={errors.phone?.message}
+          hint="Opcional. Con él, mandar la invitación por WhatsApp es un toque desde Envío."
+        >
+          <Input
+            id="guest-phone"
+            type="tel"
+            inputMode="tel"
+            autoComplete="tel"
+            placeholder="55 1234 5678"
+            aria-invalid={Boolean(errors.phone)}
+            {...register("phone")}
           />
         </Field>
 

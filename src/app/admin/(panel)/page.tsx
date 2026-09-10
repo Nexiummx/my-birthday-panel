@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { CalendarCheck, Clock3, Mail, TrendingUp, UserX, Users } from "lucide-react";
+import { CalendarCheck, Clock3, Mail, Send, TrendingUp, UserX, Users } from "lucide-react";
 import { StatsCard } from "@/components/admin/StatsCard";
 import { getDashboardStats } from "@/lib/services/stats";
 import { requirePanelContext } from "@/lib/panel";
@@ -61,6 +61,40 @@ export default async function DashboardPage() {
           accent="blush"
         />
       </section>
+
+      {/* Lo accionable, antes que los porcentajes: un anfitrión que entra al
+          panel quiere saber qué le toca hacer, no cómo va de bien. */}
+      {(stats.unsent > 0 || stats.unopened > 0 || stats.arrived > 0) && (
+        <section
+          aria-label="Qué falta"
+          className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-2xl border border-gold-400/35 bg-gold-500/8 px-5 py-4"
+        >
+          {stats.unsent > 0 && (
+            <p className="font-sans text-sm text-ink-700">
+              <strong className="font-semibold">{stats.unsent}</strong>{" "}
+              {stats.unsent === 1 ? "invitación sin enviar" : "invitaciones sin enviar"}
+            </p>
+          )}
+          {stats.unopened > 0 && (
+            <p className="font-sans text-sm text-ink-700">
+              <strong className="font-semibold">{stats.unopened}</strong> enviadas que nadie ha
+              abierto
+            </p>
+          )}
+          {stats.arrived > 0 && (
+            <p className="font-sans text-sm text-olive-700">
+              <strong className="font-semibold">{stats.arrived}</strong> personas ya entraron
+            </p>
+          )}
+          <Link
+            href="/admin/envio"
+            className="ml-auto inline-flex items-center gap-1.5 font-sans text-sm text-olive-600 underline decoration-gold-400 underline-offset-4 transition-colors hover:text-olive-700"
+          >
+            <Send className="size-3.5" aria-hidden="true" />
+            Ir a envío
+          </Link>
+        </section>
+      )}
 
       <section
         aria-label="Porcentaje de confirmación"

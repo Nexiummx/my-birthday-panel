@@ -47,3 +47,30 @@ export function useScrollLock(locked: boolean): void {
     };
   }, [locked]);
 }
+
+/**
+ * Marca de tiempo que avanza sola, para relojes y cuentas atrás.
+ *
+ * Va con `useSyncExternalStore` y no con un efecto que llame a setState por dos
+ * razones: en el servidor devuelve un valor fijo, así que el HTML inicial y la
+ * hidratación coinciden —una cuenta atrás calculada en el servidor sería
+ * distinta al milisegundo siguiente y React se quejaría—, y el compilador de
+ * React no admite escribir estado dentro de un efecto.
+ */
+export function useNow(intervalMs = 1000): number {
+  const subscribe = useCallback(
+    (onChange: () => void) => {
+      const id = window.setInterval(onChange, intervalMs);
+      return () => window.clearInterval(id);
+    },
+    [intervalMs]
+  );
+
+  return useSyncExternalStore(
+    subscribe,
+    () => Math.floor(Date.now() / intervalMs) * intervalMs,
+    // En el servidor no hay "ahora" que valga: quien lo use debe tratar el 0
+    // como "todavía no lo sé" y no pintar números inventados.
+    () => 0
+  );
+}

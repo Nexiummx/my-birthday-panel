@@ -1,13 +1,15 @@
 import Link from "next/link";
 import { ArrowLeft, CameraOff, Clapperboard } from "lucide-react";
+import { ClipGallery } from "@/components/photos/ClipGallery";
 import { PhotoGallery } from "@/components/photos/PhotoGallery";
-import { PhotoUploader } from "@/components/photos/PhotoUploader";
+import { MediaUploader } from "@/components/photos/MediaUploader";
 import { Scene } from "@/components/invitation/scenes/Scene";
+import type { PublicClip } from "@/lib/public-clip";
 import type { PublicPhoto } from "@/lib/public-photo";
 import { getTheme } from "@/lib/themes";
 import { themeFontVariables } from "@/lib/theme-fonts";
 import type { EventThemeValue } from "@/lib/validations";
-import { formatInvitationDate } from "@/lib/utils";
+import { formatInvitationDate, invitationPath } from "@/lib/utils";
 
 /**
  * Pantalla de fotos de un evento. La comparten las dos puertas de entrada:
@@ -21,6 +23,8 @@ import { formatInvitationDate } from "@/lib/utils";
 export function EventPhotosScreen({
   event,
   photos,
+  clips,
+  evento,
   slug,
   guestName,
 }: {
@@ -33,6 +37,9 @@ export function EventPhotosScreen({
     photosEnabled: boolean;
   };
   photos: PublicPhoto[];
+  clips: PublicClip[];
+  /** Slug del evento. Acompaña siempre a `slug`. */
+  evento?: string;
   slug?: string;
   guestName?: string;
 }) {
@@ -59,9 +66,9 @@ export function EventPhotosScreen({
       />
       <main className="relative mx-auto flex max-w-3xl flex-col gap-10 px-5 py-12 sm:px-6 sm:py-16">
         <header className="text-center">
-          {slug && (
+          {evento && slug && (
             <Link
-              href={`/i/${slug}`}
+              href={invitationPath(evento, slug)}
               className="mb-6 inline-flex items-center gap-1.5 font-sans text-[11px] uppercase tracking-[0.2em] opacity-70 transition-opacity hover:opacity-100"
             >
               <ArrowLeft className="size-3.5" aria-hidden="true" />
@@ -89,11 +96,12 @@ export function EventPhotosScreen({
             <>
               <p className="mb-4 text-center font-sans text-sm opacity-80">
                 {guestName
-                  ? `Sube las que tomaste, ${guestName.split(" ")[0]}. Las ve todo el mundo al instante.`
-                  : "Sube las que tomaste. Las ve todo el mundo al instante."}
+                  ? `Sube lo que grabaste, ${guestName.split(" ")[0]}. Lo ve todo el mundo al instante.`
+                  : "Sube lo que grabaste. Lo ve todo el mundo al instante."}
               </p>
-              <PhotoUploader
+              <MediaUploader
                 code={slug ? undefined : event.shareCode}
+                evento={evento}
                 slug={slug}
                 guestName={guestName}
               />
@@ -105,6 +113,15 @@ export function EventPhotosScreen({
             </p>
           )}
         </section>
+
+        {clips.length > 0 && (
+          <section aria-label="Videos del evento" className="space-y-4">
+            <h2 className="font-serif text-2xl">
+              {clips.length === 1 ? "1 video" : `${clips.length} videos`}
+            </h2>
+            <ClipGallery clips={clips} />
+          </section>
+        )}
 
         {photos.length > 0 && (
           <section aria-label="Fotos del evento" className="space-y-4">

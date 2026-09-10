@@ -64,8 +64,32 @@ export async function updateProfile(id: string, input: UpdateProfileInput) {
   });
 }
 
-export async function changePassword(id: string, input: ChangePasswordInput) {
+/**
+ * Cambia la contraseña y **cierra las demás sesiones**.
+ *
+ * Lo segundo es la mitad del valor de lo primero. Quien cambia su contraseña
+ * casi siempre lo hace porque cree que alguien más entró; si la sesión de ese
+ * alguien sigue viva, cambiarla no sirve de nada. Better Auth guarda las
+ * sesiones en base justo para que se puedan revocar de verdad.
+ *
+ * La sesión desde la que se está haciendo el cambio se conserva: cerrar la
+ * propia obligaría a volver a entrar en el mismo momento en que se acaba de
+ * demostrar quién eres, y solo se leería como un fallo.
+ */
+export async function changePassword(
+  id: string,
+  input: ChangePasswordInput,
+  currentSessionToken?: string
+) {
   await assertPassword(id, input.currentPassword);
-
   await setUserPassword(id, input.newPassword);
+
+  const { count } = await prisma.session.deleteMany({
+    where: {
+      userId: id,
+      ...(currentSessionToken ? { token: { not: currentSessionToken } } : {}),
+    },
+  });
+
+  return { closedSessions: count };
 }

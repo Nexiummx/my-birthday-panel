@@ -48,3 +48,14 @@ export async function parseBody<Schema extends z.ZodType>(
   }
   return schema.parse(raw);
 }
+
+/**
+ * Respuesta de "demasiadas peticiones", con la cabecera que espera un cliente
+ * educado. Se devuelve tal cual desde las rutas públicas.
+ */
+export function tooMany(retryAfter: number) {
+  return NextResponse.json(
+    { error: "Demasiados intentos. Espera un momento y vuelve a probar." },
+    { status: 429, headers: { "Retry-After": String(Math.max(1, retryAfter)) } }
+  );
+}

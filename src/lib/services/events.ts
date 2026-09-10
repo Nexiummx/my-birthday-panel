@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { ServiceError } from "@/lib/services/errors";
 import { describeWindow, isSameDay, isWithinWindow } from "@/lib/event-date";
 import { newShareCode } from "@/lib/share-code";
+import { storage } from "@/lib/storage";
+import { eventSlug } from "@/lib/slug";
 import type { CreateEventInput, UpdateEventInput } from "@/lib/validations";
 import type { EventTheme } from "@/generated/prisma/enums";
 
@@ -93,12 +95,25 @@ export async function createEvent(ownerId: string, input: CreateEventInput) {
       throw new ServiceError(outOfCreditsMessage(account.eventQuota), 402);
     }
 
+    // Los slugs de evento son un espacio compartido por todos los clientes:
+    // la comparación es global a propósito, al revés que la de los invitados.
+    const taken = await tx.event.findMany({ select: { slug: true } });
+    const used = taken.map((row) => row.slug);
+
+    // El anfitrión puede escribirlo; si no, sale del nombre. Cuando lo escribe
+    // y está ocupado se le dice, en vez de numerárselo por detrás: pidió ese y
+    // no otro.
+    if (input.slug && used.includes(input.slug)) {
+      throw new ServiceError("Ese enlace ya está en uso por otro evento", 409);
+    }
+
     // toEventData deja todo opcional (lo comparte la edición), así que los
     // campos obligatorios se repiten aquí para que el tipo del create cuadre.
     return tx.event.create({
       data: {
         ...toEventData(input),
         ownerId,
+        slug: input.slug || eventSlug(input.name, used),
         name: input.name,
         date: input.date,
         // El ancla de la regla de fecha nace con el evento y no se toca más.
@@ -133,6 +148,20 @@ export async function updateEvent(id: string, ownerId: string, input: UpdateEven
   }
 
   const { archived, photosEnabled, ...fields } = input;
+  // Vacío es "déjalo como está": undefined le dice a Prisma que no toque la
+  // columna, mientras que "" la sobrescribiría con un slug que no existe.
+  const slug = input.slug || undefined;
+
+  // Renombrar la ruta pública es cosa seria: los enlaces ya enviados apuntan al
+  // slug viejo y dejan de funcionar. Se permite porque el anfitrión lo pide
+  // antes de mandar nada —el slug de fábrica sale del nombre y casi siempre
+  // quiere retocarlo—, y la pantalla lo avisa.
+  if (slug && slug !== event.slug) {
+    const taken = await prisma.event.findUnique({ where: { slug }, select: { id: true } });
+    if (taken) {
+      throw new ServiceError("Ese enlace ya está en uso por otro evento", 409);
+    }
+  }
 
   // Archivar y desarchivar ya no tocan créditos: el crédito se gastó al crear.
 
@@ -160,6 +189,7 @@ export async function updateEvent(id: string, ownerId: string, input: UpdateEven
     where: { id },
     data: {
       ...toEventData(fields),
+      slug,
       // Se marca solo cuando la fecha se movió de verdad: guardar el formulario
       // sin tocarla no puede consumir el único cambio disponible.
       dateChangedAt: movesDate ? new Date() : undefined,
@@ -182,13 +212,49 @@ export async function overrideEventDate(id: string, date: Date) {
   });
 }
 
+/**
+ * Borra un evento y, con él, sus archivos.
+ *
+ * La base se limpia sola —invitaciones, respuestas y fotos caen por
+ * `onDelete: Cascade`—, pero el almacenamiento no sabe nada de eso: hasta
+ * ahora las fotos, los videos, sus portadas y la canción se quedaban en el
+ * bucket para siempre, ocupando y costando, sin ninguna fila que los nombrara.
+ * Es basura que nadie iba a encontrar nunca.
+ *
+ * Las rutas se leen ANTES de borrar la fila, que es cuando todavía se sabe
+ * cuáles son.
+ */
 export async function deleteEvent(id: string, ownerId: string) {
   const event = await getEvent(id, ownerId);
   if (!event) {
     throw new ServiceError("El evento no existe", 404);
   }
+
+  const media = await prisma.photo.findMany({
+    where: { eventId: id },
+    select: { storagePath: true, posterPath: true },
+  });
+
+  const archivos = [
+    ...media.map((row) => row.storagePath),
+    ...media.flatMap((row) => (row.posterPath ? [row.posterPath] : [])),
+    ...(event.soundtrackPath ? [event.soundtrackPath] : []),
+  ];
+
   // Las invitaciones y sus respuestas caen con el evento (onDelete: Cascade).
   await prisma.event.delete({ where: { id } });
+
+  // Los archivos van después y sin poder tumbar la operación. El orden importa:
+  // borrarlos primero y fallar el DELETE dejaría un evento vivo con las fotos
+  // rotas, que para el anfitrión es peor que unos archivos de más. Y un fallo
+  // aquí solo cuesta espacio, no corrección.
+  if (archivos.length > 0) {
+    try {
+      await storage().remove(archivos);
+    } catch (error) {
+      console.error(`[almacenamiento] no se pudieron borrar los archivos de ${id}:`, error);
+    }
+  }
 }
 
 /**

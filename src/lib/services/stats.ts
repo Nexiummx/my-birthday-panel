@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { countByStage } from "@/lib/invite-stage";
 import { percentage } from "@/lib/utils";
 
 export interface DashboardStats {
@@ -15,6 +16,11 @@ export interface DashboardStats {
   totalPasses: number;
   /** Suma de personas confirmadas. */
   confirmedGuests: number;
+  /** Cuántas faltan por mandar y cuántas se mandaron sin que nadie las abriera. */
+  unsent: number;
+  unopened: number;
+  /** Personas que llegaron de verdad, si ya se pasó lista. */
+  arrived: number;
 }
 
 const EMPTY: DashboardStats = {
@@ -26,6 +32,9 @@ const EMPTY: DashboardStats = {
   responseRate: 0,
   totalPasses: 0,
   confirmedGuests: 0,
+  unsent: 0,
+  unopened: 0,
+  arrived: 0,
 };
 
 /**
@@ -41,14 +50,23 @@ export async function getDashboardStats(
 
   const scope = { eventId, event: { ownerId } } as const;
 
-  const [grouped, passes, confirmedGuests] = await Promise.all([
+  const [grouped, passes, confirmedGuests, tracking, arrived] = await Promise.all([
     prisma.invitation.groupBy({ by: ["status"], _count: { _all: true }, where: scope }),
     prisma.invitation.aggregate({ _sum: { guestCount: true }, where: scope }),
     prisma.rsvp.aggregate({
       _sum: { guestCount: true },
       where: { status: "CONFIRMED", invitation: scope },
     }),
+    // Lo mínimo para clasificar cada invitación en su punto del camino, sin
+    // traerse la lista entera al servidor de la portada.
+    prisma.invitation.findMany({
+      where: scope,
+      select: { status: true, sentAt: true, firstViewedAt: true },
+    }),
+    prisma.invitation.aggregate({ _sum: { checkedInCount: true }, where: scope }),
   ]);
+
+  const stages = countByStage(tracking);
 
   const countOf = (status: string) =>
     grouped.find((row) => row.status === status)?._count._all ?? 0;
@@ -67,5 +85,8 @@ export async function getDashboardStats(
     responseRate: percentage(confirmed + declined, total),
     totalPasses: passes._sum.guestCount ?? 0,
     confirmedGuests: confirmedGuests._sum.guestCount ?? 0,
+    unsent: stages.SIN_ENVIAR,
+    unopened: stages.ENVIADA,
+    arrived: arrived._sum.checkedInCount ?? 0,
   };
 }

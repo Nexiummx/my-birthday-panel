@@ -64,7 +64,45 @@ export function siteUrl(): string {
   return "http://localhost:3000";
 }
 
-/** Construye la URL pública de una invitación. */
-export function buildInvitationUrl(slug: string): string {
-  return `${siteUrl()}/i/${slug}`;
+/**
+ * Ruta pública de una invitación, sin el origen: /e/[evento]/i/[invitado].
+ *
+ * El prefijo /e/ está para que un evento no pueda chocar nunca con una ruta de
+ * la aplicación. Sin él, dar de alta un evento llamado "precios" o estrenar
+ * mañana una página /blog dejaría a alguien sin invitación, y esa colisión
+ * aparecería en producción y no aquí.
+ */
+export function invitationPath(eventSlug: string, slug: string): string {
+  return `/e/${eventSlug}/i/${slug}`;
+}
+
+/** Construye la URL pública completa de una invitación. */
+export function buildInvitationUrl(eventSlug: string, slug: string): string {
+  return `${siteUrl()}${invitationPath(eventSlug, slug)}`;
+}
+
+/**
+ * Trozo de nombre de archivo a partir de un texto libre.
+ *
+ * Sin acentos ni espacios: un archivo llamado "Maya · 29.mp4" viaja mal por
+ * WhatsApp y por más de un gestor de archivos.
+ */
+export function fileSlug(text: string, fallback = "evento"): string {
+  const base = text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .toLowerCase()
+    .slice(0, 40);
+  return base || fallback;
+}
+
+/**
+ * Milisegundos a "m:ss". Se usa para los clips, que nunca pasan de un minuto,
+ * así que no contempla horas.
+ */
+export function formatDuration(ms: number | null | undefined): string {
+  const total = Math.max(0, Math.round((ms ?? 0) / 1000));
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
 }

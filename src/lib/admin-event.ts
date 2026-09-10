@@ -6,6 +6,8 @@ import { formatLongDate } from "@/lib/utils";
 /** Fila de evento ya serializada para el panel. */
 export interface AdminEvent {
   id: string;
+  /** Primera mitad de la ruta pública de sus invitaciones: /e/[slug]/i/[…]. */
+  slug: string;
   name: string;
   /** ISO: el formulario la recorta a YYYY-MM-DD. */
   date: string;
@@ -18,6 +20,9 @@ export interface AdminEvent {
   description: string | null;
   invitationImage: string | null;
   theme: string;
+  inviteMessage: string | null;
+  giftRegistryUrl: string | null;
+  giftRegistryLabel: string | null;
   sealedEyebrow: string | null;
   sealedHeadline: string | null;
   sealedCta: string | null;
@@ -30,6 +35,7 @@ export interface AdminEvent {
 export function toAdminEvent(event: EventRecord): AdminEvent {
   return {
     id: event.id,
+    slug: event.slug,
     name: event.name,
     date: event.date.toISOString(),
     dateLabel: formatLongDate(event.date),
@@ -41,6 +47,9 @@ export function toAdminEvent(event: EventRecord): AdminEvent {
     description: event.description,
     invitationImage: event.invitationImage,
     theme: event.theme,
+    inviteMessage: event.inviteMessage,
+    giftRegistryUrl: event.giftRegistryUrl,
+    giftRegistryLabel: event.giftRegistryLabel,
     sealedEyebrow: event.sealedEyebrow,
     sealedHeadline: event.sealedHeadline,
     sealedCta: event.sealedCta,

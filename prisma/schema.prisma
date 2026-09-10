@@ -20,6 +20,15 @@ enum InvitationStatus {
   DECLINED
 }
 
+/// Qué es el archivo que subió un invitado. Fotos y videos comparten tabla
+/// porque comparten todo lo demás: quién lo subió, la moderación del anfitrión
+/// y el sitio que ocupa en el recuerdo. Separarlos en dos modelos obligaría a
+/// duplicar esas tres cosas y a ordenarlas juntas a mano al mostrarlas.
+enum MediaKind {
+  PHOTO
+  VIDEO
+}
+
 /// Estética de la experiencia pública. Cada valor tiene su paleta, sus
 /// tipografías y su escena en src/lib/themes.ts.
 enum EventTheme {
@@ -59,6 +68,7 @@ model AdminUser {
   sessions Session[]
   accounts Account[]
   tickets  Ticket[]
+  payments Payment[]
 
   @@map("admin_users")
 }
@@ -143,6 +153,18 @@ model Event {
   id      String @id @default(cuid())
   ownerId String
 
+  /// Nombre del evento en la URL pública: /e/[slug]/i/[invitado].
+  ///
+  /// Es legible y lo elige el anfitrión ("xv-de-sofia"), no un código: aparece
+  /// en el enlace que recibe cada invitado y decirle de qué fiesta se trata es
+  /// parte de la invitación. No es ningún secreto —el secreto es el remate
+  /// aleatorio del slug del invitado, ver src/lib/slug.ts—, así que ante un
+  /// nombre repetido basta con numerarlo.
+  ///
+  /// Único en toda la plataforma porque es un segmento de ruta; las colisiones
+  /// con las rutas de la propia aplicación las evita el prefijo /e/.
+  slug String @unique
+
   name            String
   date            DateTime
   time            String
@@ -178,6 +200,26 @@ model Event {
   /// El anfitrión puede cerrar la subida de fotos sin borrar nada.
   photosEnabled Boolean @default(true)
 
+  /// Plantilla del mensaje con el que se manda la invitación por WhatsApp.
+  /// NULL = la de por defecto. Admite {invitado}, {evento}, {fecha} y {enlace}.
+  inviteMessage String?
+
+  /// Mesa de regalos. En México casi toda invitación lleva una, y hoy el
+  /// anfitrión no tiene dónde ponerla salvo dentro de la descripción.
+  giftRegistryUrl   String?
+  giftRegistryLabel String?
+
+  /// Música del recuerdo. El archivo vive en el almacenamiento, como las fotos;
+  /// aquí solo queda su ruta.
+  soundtrackPath String?
+  /// Nombre del archivo tal como lo subió el anfitrión, para poder enseñárselo.
+  /// Sin esto solo veríamos un UUID y no sabría qué canción puso.
+  soundtrackName String?
+  /// Desde qué milisegundo del tema empieza a sonar. Casi ninguna canción
+  /// arranca por su mejor parte, y el video dura menos de medio minuto: sin
+  /// poder elegir el trozo, la música casi nunca encaja.
+  soundtrackStartMs Int @default(0)
+
   /// Archivar solo saca el evento de la vista: no devuelve el crédito.
   archivedAt DateTime?
 
@@ -195,22 +237,57 @@ model Event {
 
 /// Invitación individual: una URL pública por invitado.
 model Invitation {
-  id              String           @id @default(cuid())
-  eventId         String
-  slug            String           @unique
+  id      String @id @default(cuid())
+  eventId String
+
+  /// Parte de invitado de la URL: /e/[evento]/i/[slug].
+  ///
+  /// Único DENTRO de su evento, no en toda la plataforma. La invitación
+  /// pertenece al evento y así lo dice el esquema: dos fiestas distintas pueden
+  /// tener a su "mariana-lopez", y dar de alta un invitado ya no obliga a leer
+  /// los slugs de todos los eventos de todos los clientes.
+  ///
+  /// Sigue llevando remate aleatorio: ver src/lib/slug.ts.
+  slug String
+
   guestName       String
   guestCount      Int              @default(1)
   status          InvitationStatus @default(PENDING)
   personalMessage String?
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
+
+  /// Teléfono del invitado, como lo escribió el anfitrión. Se guarda tal cual y
+  /// se normaliza al construir el enlace: reescribirlo aquí le impediría
+  /// corregir un número que él ve bien y nosotros interpretamos mal.
+  /// Sin él, mandar la invitación es copiar y pegar; con él, un toque.
+  phone String?
+
+  /// Cuándo se marcó como enviada. NULL = todavía no ha salido.
+  sentAt DateTime?
+
+  /// Primera vez que el invitado ABRIÓ su invitación, y cuántas veces.
+  /// Se registra desde el navegador y no en el render: los previsualizadores de
+  /// WhatsApp y compañía piden el HTML para la miniatura, y contarlos haría
+  /// creer al anfitrión que su invitado ya la vio.
+  firstViewedAt DateTime?
+  lastViewedAt  DateTime?
+  viewCount     Int       @default(0)
+
+  /// Llegada a la fiesta. `checkedInCount` es cuántas personas de su pase
+  /// entraron de verdad, que no siempre son las que confirmó.
+  checkedInAt    DateTime?
+  checkedInCount Int       @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   event  Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
   /// Una invitación solo puede tener un RSVP activo.
   rsvp   Rsvp?
   photos Photo[]
 
-  @@index([eventId])
+  /// El único compuesto sirve además para buscar por evento: un índice suelto
+  /// sobre eventId sería el mismo prefijo repetido.
+  @@unique([eventId, slug])
   @@index([status])
   @@map("invitations")
 }
@@ -299,6 +376,64 @@ model TicketMessage {
   @@map("ticket_messages")
 }
 
+/// En qué acabó un cobro. Son los estados de Mercado Pago reducidos a lo que
+/// nos cambia algo: solo APPROVED entrega créditos.
+enum PaymentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  REFUNDED
+  CANCELLED
+}
+
+/// Un intento de cobro y su resultado.
+///
+/// Es también el libro de movimientos de créditos: `AdminUser.eventQuota` dice
+/// cuántos hay, y estas filas dicen de dónde salieron. Sin ellas, un cupo de 3
+/// no se puede auditar ni explicar a un cliente que reclama.
+///
+/// La fila se crea ANTES de mandar a nadie a pagar, en estado PENDING. Así el
+/// aviso de Mercado Pago siempre encuentra a quién acreditarle, incluso si
+/// llega antes de que el navegador vuelva.
+model Payment {
+  id      String @id @default(cuid())
+  ownerId String
+
+  /// Id del plan en lib/pricing.ts. Se guarda plano y no como relación porque
+  /// el catálogo vive en código: si mañana sube el precio, este cobro tiene que
+  /// seguir diciendo lo que se cobró aquel día.
+  planId   String
+  planName String
+  /// Créditos que otorga. Copiado del plan por la misma razón.
+  credits  Int
+
+  /// En centavos: guardar dinero en coma flotante acaba en un céntimo perdido.
+  amountCents Int
+  currency    String @default("MXN")
+
+  status   PaymentStatus @default(PENDING)
+  provider String        @default("mercadopago")
+
+  /// Id del pago en Mercado Pago. Único: es lo que impide acreditar dos veces
+  /// el mismo cobro cuando llega el aviso repetido, que llega siempre.
+  providerId   String? @unique
+  preferenceId String?
+  /// El estado tal cual lo manda el proveedor, para poder depurar sin adivinar.
+  providerStatus String?
+
+  /// Cuándo se sumaron los créditos al cupo. NULL = todavía no se han sumado.
+  creditedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  owner AdminUser @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId])
+  @@index([status])
+  @@map("payments")
+}
+
 /// Foto que un invitado subió del evento.
 ///
 /// El archivo vive en el almacenamiento (Supabase Storage); aquí solo queda su
@@ -318,12 +453,23 @@ model Photo {
   /// invitación desaparezca.
   authorName String
 
+  /// Foto o video. Por defecto PHOTO: todo lo que había antes de que
+  /// existieran los videos lo es, y ninguna fila cambia de comportamiento.
+  kind MediaKind @default(PHOTO)
+
   /// Ruta dentro del bucket, no una URL: el proveedor puede cambiar.
   storagePath String @unique
   width       Int
   height      Int
   /// Tamaño del archivo ya comprimido en el navegador.
   bytes       Int
+
+  /// Solo videos: fotograma de portada, ya subido como JPEG aparte.
+  /// Sin él, una cuadrícula de diez videos obligaría al móvil a descargar diez
+  /// videos para enseñar diez miniaturas.
+  posterPath String?
+  /// Solo videos: cuánto dura, en milisegundos.
+  durationMs Int?
 
   caption String?
 
@@ -344,6 +490,7 @@ model Photo {
   invitation Invitation? @relation(fields: [invitationId], references: [id], onDelete: SetNull)
 
   @@index([eventId, hiddenAt])
+  @@index([eventId, kind, hiddenAt])
   @@index([eventId, rewindOrder])
   @@index([invitationId])
   @@map("photos")

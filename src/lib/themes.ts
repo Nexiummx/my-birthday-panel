@@ -36,6 +36,24 @@ export interface ThemeDefinition {
   copy: ThemeCopy;
   /** Tres colores de muestra para el selector: fondo, acento y papel. */
   swatch: readonly [string, string, string];
+  /**
+   * Paleta del video para redes, en hexadecimal literal.
+   *
+   * No sale de las variables CSS del tema aunque sean los mismos colores: el
+   * video se pinta en un canvas, y un canvas no entiende `var(--color-gold-400)`
+   * ni `color-mix`. Resolverlas leyendo estilos calculados ataría la generación
+   * del video a que el elemento correcto esté montado y con el tema puesto.
+   */
+  reel: {
+    /** Arriba del degradado del fondo. */
+    top: string;
+    /** Abajo, siempre más oscuro: es lo que da profundidad. */
+    bottom: string;
+    /** Los números y los remates. */
+    accent: string;
+    /** El texto. */
+    paper: string;
+  };
 }
 
 export const THEMES: Record<EventThemeValue, ThemeDefinition> = {
@@ -50,6 +68,7 @@ export const THEMES: Record<EventThemeValue, ThemeDefinition> = {
       cta: "Haz clic para descubrir",
     },
     swatch: ["#1f3117", "#bd9d5a", "#fdfaf3"],
+    reel: { top: "#1f3117", bottom: "#0b1209", accent: "#d5ba7f", paper: "#f8f1e2" },
   },
   VAQUEROS: {
     id: "VAQUEROS",
@@ -62,6 +81,7 @@ export const THEMES: Record<EventThemeValue, ThemeDefinition> = {
       cta: "Ábrela de un empujón",
     },
     swatch: ["#14120f", "#a89b80", "#f6f2e8"],
+    reel: { top: "#1f1c17", bottom: "#0a0908", accent: "#a89b80", paper: "#ece5d6" },
   },
   BARBIE: {
     id: "BARBIE",
@@ -74,6 +94,7 @@ export const THEMES: Record<EventThemeValue, ThemeDefinition> = {
       cta: "Descubre tu invitación",
     },
     swatch: ["#751648", "#e0218a", "#fff6fa"],
+    reel: { top: "#931c5a", bottom: "#3d0a26", accent: "#f7c948", paper: "#ffe9f3" },
   },
   DISCO: {
     id: "DISCO",
@@ -86,6 +107,7 @@ export const THEMES: Record<EventThemeValue, ThemeDefinition> = {
       cta: "Enciende las luces",
     },
     swatch: ["#0d0a16", "#c9a227", "#faf6ec"],
+    reel: { top: "#211a31", bottom: "#08060e", accent: "#e0c66d", paper: "#f2e9d6" },
   },
 };
 

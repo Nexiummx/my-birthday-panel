@@ -102,6 +102,21 @@ después puedes retirarla.
 
 ---
 
+### Variables nuevas de esta tanda
+
+```
+# Cobro en línea. Sin ellas, el panel sigue pidiendo que escriban por WhatsApp.
+MERCADOPAGO_ACCESS_TOKEN="APP_USR-…"
+MERCADOPAGO_WEBHOOK_SECRET="…"
+
+# Cifrado de campos en reposo. Sin ella no se cifra nada y todo funciona igual.
+# openssl rand -base64 32   ·   ⚠ si se pierde, lo cifrado con ella no vuelve
+FIELD_ENCRYPTION_KEY_V1="…"
+
+# El nombre de la marca, para probar candidatos sin desplegar código.
+NEXT_PUBLIC_BRAND_NAME="Invitaciones"
+```
+
 ## Configuración de Supabase
 
 1. Crea un proyecto en <https://supabase.com>.
@@ -302,6 +317,148 @@ créditos. No hay un segundo modo de facturación en el código.
 
 ---
 
+## Envío, seguimiento y entrada
+
+El hueco más grande que tenía el producto no era una pantalla: era el camino
+entre **"invitación creada"** e **"invitado en la fiesta"**. El anfitrión
+copiaba enlaces uno por uno y no sabía quién los había abierto.
+
+### El embudo
+
+`/admin/envio` clasifica cada invitación en el punto donde está
+([`lib/invite-stage.ts`](src/lib/invite-stage.ts)):
+
+| Punto | Qué significa | Qué le toca al anfitrión |
+| --- | --- | --- |
+| Sin enviar | No ha salido | Mandarla |
+| Enviada, sin abrir | Salió y nadie la abrió | Puede que no llegara: reenviar |
+| Abierta, sin responder | La vio y no contestó | Un recordatorio |
+| Confirmada / No asistirá | Ya respondió | Nada |
+
+Antes solo se sabía "confirmadas" y "pendientes", y con eso lo único que se
+puede hacer es insistirle a todo el mundo por igual. La distinción entre *no le
+llegó* y *la vio y no responde* es la que convierte el panel en algo accionable.
+
+Una respuesta **gana sobre cualquier otra señal**: el anfitrión puede marcar a
+quien le confirmó por teléfono, sin que esa invitación se abriera nunca.
+
+### Cómo se manda
+
+Un toque por invitado abre WhatsApp con el mensaje escrito y, si hay teléfono,
+con el chat ya elegido. La plantilla se escribe una vez por evento y admite
+`{invitado}`, `{evento}`, `{fecha}` y `{enlace}`
+([`lib/invite-message.ts`](src/lib/invite-message.ts)). Un marcador que no
+exista se deja tal cual en vez de desaparecer: así el anfitrión ve que no vale.
+
+El teléfono se guarda **como él lo escribió** y se normaliza solo al construir
+el enlace ([`lib/phone.ts`](src/lib/phone.ts)). Reescribirlo en la base le
+impediría corregir un número que él ve bien y nosotros interpretamos mal.
+
+Marcar como enviada es manual a propósito: WhatsApp se abre en otra aplicación
+y no nos cuenta nada, así que fingir certeza sería peor que pedir un toque. Se
+marca al abrir WhatsApp y se puede desmarcar.
+
+### Cómo se sabe que la abrió
+
+El aviso lo manda **el navegador del invitado**, no el render de la página. Es
+la decisión importante de todo esto: WhatsApp, Telegram y los buscadores piden
+el HTML para armar la miniatura, y contarlos haría creer al anfitrión que su
+invitado ya la vio — dejaría de insistirle a quien nunca la recibió. Los bots no
+ejecutan JavaScript, así que el dato es limpio.
+
+`firstViewedAt` solo se escribe la primera vez y por eso son **dos escrituras**:
+un `update` por id no puede expresar "solo si está vacío". Pisarla borraría
+cuándo llegó.
+
+La ruta responde **204 siempre**, incluso con un slug que no existe: es pública
+y no tiene por qué servir para averiguar qué invitaciones hay.
+
+### La lista de la puerta
+
+`/admin/entrada` se usa el día del evento, de pie y con prisa, así que sus
+reglas son distintas a las del resto del panel: objetivos grandes, sin
+confirmaciones que interrumpan, y todo deshacible de un toque — en la puerta se
+marca mal, y el error tiene que costar un gesto y no una búsqueda.
+
+Cuenta **personas, no invitaciones**: al salón le importa cuánta gente hay
+dentro, y una invitación de cuatro pases con dos que llegaron es otro dato. La
+hora de llegada no se pisa al corregir el número, y llega gente que no confirmó
+—o más de la que cabía en su pase—, así que los textos están escritos para que
+eso no parezca un error del sistema.
+
+### La lista, fuera del panel
+
+`/api/invitations/export` da un CSV
+([`lib/csv.ts`](src/lib/csv.ts)) porque el día del evento la lista acaba en manos
+del salón o del catering, y esa gente trabaja en Excel. Dos detalles que parecen
+manías y no lo son: separa por **punto y coma** —Excel en español mete todo en
+una columna si ve comas— y lleva **BOM**, sin el cual "Mariana López" sale
+"Mariana LÃ³pez". Además, una celda que empiece por `=`, `+`, `-` o `@` se
+neutraliza: un invitado apuntado como `=SUMA(...)` no debe ejecutar nada en la
+máquina de nadie.
+
+### En la invitación
+
+- **Cuenta atrás.** Es lo que hace que abrirla dos veces no sea lo mismo las dos.
+  Se calcula solo en el navegador: `useNow` devuelve 0 en el servidor y el
+  componente reserva el hueco sin pintar números, porque una cuenta atrás
+  calculada en el servidor ya está caducada cuando llega.
+- **Mesa de regalos.** En México casi toda invitación lleva una, y hasta ahora
+  el anfitrión no tenía dónde ponerla salvo dentro de la descripción.
+
+---
+
+## Cobro con Mercado Pago
+
+Mercado Pago y no Stripe porque esto se vende en México: aquí la gente paga con
+débito, con transferencia SPEI o en efectivo en un OXXO, y Checkout Pro trae los
+tres. Se habla con su API REST por `fetch`, sin SDK
+([`lib/mercadopago.ts`](src/lib/mercadopago.ts)) — son tres llamadas, la misma
+decisión que se tomó con Supabase Storage.
+
+**Sin credenciales configuradas el cobro en línea no existe** y el panel sigue
+enseñando el camino de siempre: escribir por WhatsApp y que el equipo suba el
+cupo a mano. Nunca revienta por una variable que falte.
+
+```
+MERCADOPAGO_ACCESS_TOKEN="APP_USR-…"     # de tu aplicación en Mercado Pago
+MERCADOPAGO_WEBHOOK_SECRET="…"           # el de "Notificaciones webhooks"
+```
+
+### Dos reglas, y las dos existen porque cobrar mal se paga con dinero
+
+**1. Los créditos NUNCA se dan desde el navegador.** La URL de vuelta la controla
+quien paga: cualquiera puede escribir `/admin/pago?estado=exito` en la barra de
+direcciones. `/admin/pago` no acredita nada — solo cuenta lo que está pasando y
+enseña el cupo real. Los créditos los da
+[`/api/pagos/mercadopago`](src/app/api/pagos/mercadopago/route.ts), que es
+servidor a servidor, va firmado, y encima le vuelve a preguntar a Mercado Pago
+cómo quedó el pago antes de tocar nada.
+
+**2. Acreditar es idempotente.** El aviso llega repetido —siempre— y a veces dos
+veces a la vez. Quien lo impide de verdad no es un `if`: es la restricción de
+unicidad sobre `providerId` en la base, más `creditedAt`, que una vez puesto no
+se vuelve a sumar.
+
+El importe tampoco viaja en la petición: a `/api/pagos/checkout` solo llega el id
+del plan y el precio sale del catálogo del servidor. Si viniera del navegador, se
+podría comprar el plan de cinco eventos por un peso.
+
+### El libro de créditos
+
+La tabla `payments` es también la respuesta a "¿de dónde salieron mis 3
+créditos?". `AdminUser.eventQuota` dice cuántos hay; estas filas dicen de dónde
+vinieron, con su plan, su importe y su fecha. El nombre, los créditos y el
+importe se **copian** del catálogo al crear el cobro: si mañana sube el precio,
+ese cobro tiene que seguir diciendo lo que se cobró aquel día.
+
+Un pago en efectivo tarda hasta tres días hábiles en confirmarse. Por eso la fila
+se crea en `PENDING` **antes** de mandar a nadie a pagar: así el aviso siempre
+encuentra a quién acreditarle, aunque llegue mucho después de que el navegador
+volviera.
+
+---
+
 ## Créditos de evento
 
 Cualquiera crea su cuenta desde `/admin/registro`, pero nace con **0 créditos**.
@@ -449,10 +606,19 @@ revocada desde otro dispositivo, o base recreada en desarrollo.
 
 ---
 
-## Fotos y el recuerdo
+## Fotos, videos y el recuerdo
 
-Los invitados suben fotos de la fiesta y el evento genera un **recuerdo**:
-un resumen en pantallas, estilo stories, con lo que pasó.
+Los invitados suben fotos y videos de la fiesta, y con ese material salen dos
+piezas distintas:
+
+| Pieza | Para quién | Qué es |
+| --- | --- | --- |
+| **El recuerdo** (`/r/[code]`) | Quien estuvo en la fiesta | Una web en pantallas, estilo stories. Puede durar dos minutos y nombrar a todo el mundo, porque quien la ve se está buscando en ella. |
+| **El video para redes** (`/admin/recuerdo`) | Quien no fue | Un archivo de video descargable, de menos de 32 s, para publicar. Pocos planos, cifras grandes y las mejores fotos. |
+
+No es el mismo contenido en dos formatos: son dos guiones, y por eso la lista de
+nombres o el "fotógrafo de la noche" están en el primero y no en el segundo —
+fuera de la fiesta no significan nada.
 
 ### Dos puertas de entrada
 
@@ -503,9 +669,62 @@ que ya tienen los slugs de invitación.
 ### Límites
 
 Viven en el servicio y no en la ruta, porque las dos puertas son públicas:
-**500 fotos por evento**, **8 MB por archivo**, y solo JPG, PNG o WebP. Además,
-la ruta que se registra tiene que empezar por la del propio evento; si no,
-cualquiera podría colgar de su evento un archivo ajeno del bucket.
+
+| | Fotos | Videos |
+| --- | --- | --- |
+| Por evento | 500 | 60 |
+| Por archivo | 8 MB | 40 MB |
+| Formatos | JPG, PNG, WebP | MP4, WebM |
+
+Los cupos van **separados**: un clip comprimido pesa como treinta fotos, y
+contarlos juntos dejaría un evento sin sitio para fotos por culpa de veinte
+videos.
+
+Además, la ruta que se registra tiene que empezar por la del propio evento; si
+no, cualquiera podría colgar de su evento un archivo ajeno del bucket. La
+portada de un video se comprueba igual que el video, porque es otro archivo del
+bucket.
+
+### Videos
+
+Un móvil actual graba a 1080p o 4K con 15–50 MB por cada diez segundos: subir el
+original desde la red de un salón no es lento, es imposible. Así que el clip se
+**vuelve a codificar en el navegador** antes de salir
+([`lib/video.ts`](src/lib/video.ts)): se reproduce, cada fotograma se pinta en un
+canvas escalado a 720p, y `MediaRecorder` graba ese canvas con el audio del
+original. Medido con un clip de 12 s: **1,76 MB → 940 KB**.
+
+Eso tiene una consecuencia que manda sobre el diseño: **comprimir cuesta lo que
+dura el clip**. De ahí el tope de **30 segundos**, que no es solo una decisión de
+producto sino lo que hace la espera tolerable, y de ahí que el video sea lo único
+que enseña porcentaje mientras sube.
+
+Un video sube **dos archivos**: el clip y su portada (un fotograma tomado a un
+décimo del clip, nunca el primero, que suele ser el suelo). Los dos permisos se
+firman de una vez, para no obligar a una segunda ida y vuelta a mitad de la
+subida. La portada es **best-effort**: si falla, el clip ya está arriba y la
+galería tira del propio video. Sin ella, una cuadrícula de diez videos obligaría
+al móvil a descargar diez videos para enseñar diez miniaturas.
+
+Tres cosas que se aprendieron midiendo, no leyendo:
+
+- **La duración no sale del archivo grabado.** `MediaRecorder` escribe
+  contenedores que mienten: el WebM ni siquiera trae duración. `durationMs` se
+  mide sobre la reproducción del original, que es la única cifra fiable.
+- **El audio se comprueba antes de conectarlo.** En un Chrome sin dispositivo de
+  salida, `AudioContext.currentTime` avanzaba 0,01 s por cada 2 s de reloj; con
+  un reloj así el MP4 sale a **tres veces la velocidad** —la imagen llega entera,
+  pero cinco segundos se ven en menos de dos—. Si el reloj no avanza, el clip se
+  graba mudo, que es un clip que sirve.
+- **El bucle de fotogramas tiene dos relojes.** `requestVideoFrameCallback` es el
+  bueno mientras la pestaña está a la vista; un `setInterval` de respaldo la
+  sigue cuando no lo está. Sin él, cambiar de aplicación a mitad de la subida
+  —lo que hace cualquiera en una fiesta— dejaba la barra clavada para siempre.
+  Se comprobó: un clip de doce segundos se paró en el 46 % y no volvió.
+
+En la galería los videos van en un **carril horizontal** aparte de las fotos, y
+ninguno se reproduce hasta que alguien lo pide. En desarrollo, `/api/media`
+atiende **peticiones por rango** (206): sin eso Safari ni empieza a reproducir.
 
 ### Moderación
 
@@ -596,6 +815,102 @@ en silencio.
 Los ids llegan del cliente, así que se comprueban contra el evento antes de
 escribir: una foto de otra cuenta se descarta, no se guarda.
 
+Los videos se eligen igual y con su propia numeración: comparten la columna
+`rewindOrder` con las fotos, pero el recuerdo los pide en dos consultas
+distintas y cada lista se ordena sola, así que un video y una foto pueden tener
+los dos la posición 1 sin estorbarse.
+
+### El video para redes
+
+Se genera **en el navegador del anfitrión**, no en el servidor. Componer video
+en servidor significa una cola, una máquina que aguante `ffmpeg` y una factura
+por evento; aquí el coste es cero y el archivo no sale de su equipo.
+
+El guion lo arma [`services/recap.ts`](src/lib/services/recap.ts) y respeta la
+misma selección que el recuerdo: no se le pide al anfitrión que elija las fotos
+dos veces.
+
+Tres módulos, separados por lo que hace falta para probarlos:
+
+| Archivo | Qué es | Se puede testear |
+| --- | --- | --- |
+| [`lib/recap-film.ts`](src/lib/recap-film.ts) | La línea de tiempo: qué plano, cuándo y cuánto | Sí, es puro |
+| [`lib/recap-render.ts`](src/lib/recap-render.ts) | El dibujo sobre el canvas, fotograma a fotograma | Necesita navegador |
+| [`components/admin/RecapStudio.tsx`](src/components/admin/RecapStudio.tsx) | La vista previa, la grabación y la descarga | Necesita navegador |
+
+La línea de tiempo está aparte y sin una sola referencia al DOM porque es donde
+se decide lo que no se puede corregir después. **Grabar cuesta lo que dura el
+video**, así que un error de ritmo no se descubre en un segundo: se descubre
+veintiocho segundos más tarde. En un test, sí.
+
+`drawRecapFrame(ctx, escenario, t)` es una función **del tiempo y de nada más**.
+Eso es lo que permite que el mismo código sirva para tres cosas que si no se
+irían pareciendo cada vez menos: la vista previa que corre en bucle en el panel,
+la grabación de verdad, y la portada suelta en JPEG. Todo se mide en fracciones
+del ancho, así que la vista previa a 360 px y el archivo a 1080 px son el mismo
+dibujo.
+
+Tres formatos, todos a 1080 de ancho: **Historia 9:16**, **Publicación 4:5** y
+**Cuadrado 1:1**. Ninguno apaisado — en una historia saldría con dos franjas
+enormes. En vertical se reserva zona segura arriba y abajo, donde Instagram pone
+su interfaz.
+
+Decisiones que salieron de medir, no de suponer:
+
+- **4 Mb/s**, porque WhatsApp rechaza los videos de más de **16 MB** y en México
+  es por donde viaja esto. A 8 Mb/s un recuerdo de 28 s pesaba 24,5 MB y no se
+  podía mandar; a 4 Mb/s ronda los 13 MB.
+- **MP4 cuando el navegador puede.** Instagram no acepta `.webm`, así que si el
+  navegador solo sabe grabar eso, se dice en pantalla en vez de dejar que lo
+  descubra al subirlo.
+- **Sin música**, a propósito: cada red pone la suya al publicar, y la que se
+  elige ahí es la que no tumba el alcance por derechos de autor.
+- El fondo lleva **grano de película** de una loseta de 128 px que se genera una
+  vez y se repite desplazada. Un degradado limpio a 1080 px enseña bandas en
+  cuanto se comprime el video; generar ruido de dos millones de píxeles por
+  fotograma costaría más que todo lo demás junto.
+- La paleta de cada tema está en **hexadecimal literal**
+  ([`lib/themes.ts`](src/lib/themes.ts), campo `reel`) y no sale de las variables
+  CSS: un canvas no entiende `var(--color-gold-400)` ni `color-mix`.
+- Las tipografías se resuelven preguntándole a un elemento con el tema puesto y
+  fuera de la pantalla, porque el canvas necesita el **nombre real** de la
+  familia. Está fuera de la vista pero no oculto: una fuente que no pinta nada
+  no se descarga.
+
+Las imágenes se cargan con `crossOrigin="anonymous"` y eso **no es opcional**:
+un canvas contaminado no se puede grabar, y el fallo no sería un error visible
+sino un video que no existe.
+
+---
+
+### La música del recuerdo
+
+El anfitrión sube un MP3 desde `/admin/recuerdo` y elige **por dónde empieza**
+arrastrando sobre la onda. No es un lujo: el video dura menos de medio minuto y
+casi ninguna canción arranca por su mejor parte — sin poder mover la ventana, la
+música no encaja y se acaba quitando.
+
+La onda se dibuja con el **máximo** de cada tramo, no con la media. La media de
+una canción es casi plana y todas se parecen; el máximo deja ver dónde entra la
+batería, que es justo lo que alguien busca cuando arrastra.
+
+El mismo código suena al probar y al grabar
+([`lib/soundtrack-audio.ts`](src/lib/soundtrack-audio.ts)): con dos
+implementaciones, "lo que oigo" y "lo que se descarga" dejarían de coincidir al
+primer cambio.
+
+**No se puede tomar el audio de un enlace de YouTube.** Sus términos no lo
+permiten y la canción tampoco sería del anfitrión para publicarla. Se dice en la
+propia pantalla, porque es lo primero que se intenta. Para Instagram o TikTok lo
+mejor es no ponerle música aquí y elegirla allí, donde ya está licenciada.
+
+Antes de mezclar audio se comprueba que **el reloj del audio avance**. Medido en
+una pestaña en segundo plano, `AudioContext.currentTime` avanzaba 0,01 s por cada
+2 s de reloj; con un reloj así el contenedor MP4 saca su duración de la pista de
+audio y el clip sale a varias veces la velocidad — la imagen llega entera, pero
+veintiocho segundos se ven en menos de diez. Si el reloj no avanza, el video se
+graba mudo y se dice en pantalla. Un video mudo sirve; uno acelerado no.
+
 ---
 
 ### Fotos de prueba
@@ -603,10 +918,27 @@ escribir: una foto de otra cuenta se descarta, no se guarda.
 Para ver cómo se comportan la galería y el recuerdo con material de verdad:
 
 ```bash
+npm run seed:demo                                   # 42 invitados repartidos por el embudo
+npm run seed:demo -- --code a9d658727d --count 60
+npm run seed:demo -- --limpiar                      # borra TODAS las del evento
+
 npm run seed:fotos                                  # 30 fotos en el primer evento
 npm run seed:fotos -- --code a9d658727d --count 40
 npm run seed:fotos -- --limpiar                     # las borra
+
+npm run seed:videos -- --desde /ruta/con/clips      # pares nombre.mp4 + nombre.jpg
+npm run seed:videos -- --limpiar
 ```
+
+`seed:demo` no vuelca una lista plana: reparte a la gente por el embudo real —sin
+enviar, enviada, abierta sin contestar, confirmada, declinada— con las
+proporciones que se ven de verdad, y con recados de distinta longitud para que se
+note qué elige el recuerdo. Un panel donde todo el mundo confirmó no sirve para
+saber si las pantallas se entienden.
+
+`seed:videos` **no genera** los clips: un navegador es lo único que sabe grabar
+video aquí. Se generan aparte y el script solo los sube, por los mismos tres
+pasos que usa un invitado.
 
 **No son fotos: son escenas dibujadas** —luces desenfocadas, confeti, un pastel,
 globos, la pista— rasterizadas a JPEG con sharp
@@ -620,6 +952,104 @@ Suben por la **misma puerta que un invitado** —firmar, subir, registrar— en 
 de insertar filas: así el material de prueba prueba también el camino real, y
 funciona igual con el almacenamiento local que con Supabase. Necesita la
 aplicación levantada.
+
+---
+
+## Seguridad
+
+### El slug de una invitación es un secreto
+
+Todo lo público —ver la invitación, confirmar asistencia, subir fotos firmando
+con el nombre del invitado— se apoya en que **hay que conocer el enlace**. No
+hay contraseña detrás.
+
+La primera versión generaba `slugify(nombre)` con `-2`, `-3` para repetidos, y
+eso lo hacía adivinable: recorriendo una lista de nombres comunes se podía abrir
+`/i/maria-garcia`, leer el mensaje personal de esa persona y **sobrescribir su
+respuesta**. Ahora el slug lleva un remate de 7 símbolos de un alfabeto de 32
+—unas 34 mil millones de combinaciones por nombre— y conserva la parte legible,
+que no es secreta: quien recibe el enlace ya sabe cómo se llama.
+
+Las invitaciones creadas antes de este cambio siguen con el slug viejo. Para
+cambiarlas:
+
+```bash
+npm run rotar:slugs             # solo las que todavía no se han enviado
+npm run rotar:slugs -- --forzar # todas; hay que reenviarlas
+```
+
+Por defecto **no toca las ya enviadas**: cambiarles el slug rompe el enlace que
+el invitado tiene en su WhatsApp, y para un evento a la vuelta de la esquina eso
+es peor que el riesgo. El script las lista para que el anfitrión decida.
+
+### Límite de peticiones
+
+Las rutas públicas de escritura tienen tope ([`lib/rate-limit.ts`](src/lib/rate-limit.ts)):
+20 RSVP por minuto y por IP, 120 aperturas de invitación, 90 permisos de subida.
+Es lo que convierte "se puede adivinar" en "no se puede adivinar en un tiempo
+razonable". El contador vive en base y no en memoria por la misma razón que ya
+documentaba el modelo `RateLimit`: en un despliegue sin servidor cada instancia
+tiene su propia memoria. Si la base falla, **no se bloquea a nadie**: dejar sin
+confirmar a los invitados de una fiesta real es peor que no limitar un rato.
+
+### Cambiar la contraseña cierra las demás sesiones
+
+Quien cambia su contraseña casi siempre lo hace porque cree que alguien más
+entró. Si la sesión de ese alguien sigue viva, cambiarla no sirve de nada. Better
+Auth guarda las sesiones en base justo para poder revocarlas. La sesión desde la
+que se hace el cambio se conserva.
+
+### Cifrado de campos en reposo
+
+[`lib/crypto/field-crypto.ts`](src/lib/crypto/field-crypto.ts) cifra con
+AES-256-GCM tres campos concretos:
+
+| Campo | Por qué |
+| --- | --- |
+| `Invitation.phone` | Es el dato de un tercero. El invitado nunca nos lo dio: lo entregó el anfitrión. |
+| `Invitation.personalMessage` | Lo que el anfitrión le escribió a esa persona. |
+| `Rsvp.comment` | En bloque, miles de "no puedo, ando fuera" son una lista de quién no está en su casa esa noche. |
+
+Y **no** cifra, con razón:
+
+- `guestName` — ya es público por diseño: va en la URL y en la miniatura de
+  WhatsApp. Cifrarlo no reduce ningún riesgo real y rompería el orden del CSV.
+- El correo del titular — es la llave de acceso; Better Auth lo busca en cada
+  intento de entrada.
+- La contraseña — ya está protegida con lo correcto, que es un hash de un solo
+  sentido. Cifrar un hash no añade nada: el cifrado es reversible y el hash no.
+
+Protege contra **una** cosa: que alguien se lleve el volcado de Postgres. No
+protege contra quien ya entró con una sesión válida ni contra quien tiene el
+enlace de una invitación. Decirlo importa, porque "está cifrado" suena a más de
+lo que hace.
+
+Sin `FIELD_ENCRYPTION_KEY_V1` no cifra nada y todo funciona igual: eso permite
+desplegar el código antes de generar la clave. Para activarlo:
+
+```bash
+openssl rand -base64 32          # la clave; en Vercel, nunca con NEXT_PUBLIC_
+npm run cifrar:datos -- --revisar  # cuánto falta por cifrar
+npm run cifrar:datos               # cifra lo viejo, en su sitio
+```
+
+El backfill es idempotente y **no** va en una sola transacción: si se corta a la
+mitad, la tabla queda con filas cifradas y filas en claro, que es exactamente lo
+que `decryptField` sabe manejar. La aplicación no se cae durante la migración.
+
+> ⚠ **Si se pierde la clave, los datos cifrados con ella no se recuperan.** El
+> prefijo `v1:` del texto cifrado existe para poder rotar: se añade
+> `FIELD_ENCRYPTION_KEY_V2`, se sube `CURRENT_VERSION`, y lo viejo se sigue
+> leyendo con la clave vieja sin migrar de golpe.
+
+### Cabeceras
+
+`next.config.ts` manda `X-Content-Type-Options`, `Referrer-Policy`,
+`X-Frame-Options` y `frame-ancestors 'self'` —esta última impide meter el panel
+en un iframe ajeno para engañar a un anfitrión con la sesión abierta—. No hay
+CSP completa a propósito: Next inyecta scripts en línea y una CSP estricta
+necesita nonces por petición; ponerla con `unsafe-inline` daría una falsa
+sensación de protección.
 
 ---
 
@@ -762,22 +1192,29 @@ docker-compose.yml         PostgreSQL 17 de desarrollo (puerto 5433)
 scripts/
   env.ts                   Precedencia .env.local > .env
   accounts.ts              Alta de cuentas y créditos
+  seed-demo.ts             Lista de invitados repartida por el embudo
+  seed-videos.ts           Sube clips de prueba por la puerta pública
+  rotar-slugs.ts           Cambia los slugs adivinables del formato viejo
+  cifrar-datos.ts          Cifra lo que se guardó antes de activar la clave
   party-images.ts          Escenas de fiesta dibujadas (JPEG con sharp)
   seed-photos.ts           Llena la galería de un evento para probar
 prisma/
-  schema.prisma            AdminUser · Event · Invitation · Rsvp · Ticket · Photo
+  schema.prisma            AdminUser · Event · Invitation · Rsvp · Ticket ·
+                           Photo (fotos y videos, por `kind`)
   seed.ts                  Datos de ejemplo, idempotente (`--prod` los omite)
 src/
   app/
     i/[slug]/              Invitación pública + opengraph-image + /fotos
-    f/[code]/              Subida de fotos (el QR de las mesas)
+    f/[code]/              Subida de fotos y videos (el QR de las mesas)
     r/[code]/              El recuerdo, en formato stories
     admin/login/           Acceso
-    admin/(panel)/         Resumen · invitaciones · confirmaciones · fotos ·
+    admin/(panel)/         Resumen · invitaciones · envío · confirmaciones ·
+                           entrada · fotos ·
                            recuerdo · evento · soporte · cuenta · clientes y
                            tickets (superadmin)
     api/                   Route Handlers
   components/
+    marketing/             Wordmark (sello) · InvitationPreview (portada)
     invitation/            InvitationCard · InvitationInfo · RSVPModal ·
                            OpeningCurtain · Fireflies · botanicals (SVG)
     invitation/scenes/     SceneShell + una escena por tema + Scene (resolver)
@@ -785,19 +1222,37 @@ src/
                            RSVPTable · EventManager · EventFormModal ·
                            ThemePicker · AccountForms · AccountManager ·
                            AccountFormModal · ActivatePlanState ·
-                           TicketBoard · TicketModals
+                           TicketBoard · TicketModals · SendBoard · DoorBoard ·
+                           PhotoManager · PhotoShare · RewindComposer ·
+                           RecapStudio
     pricing/               PlanCards (portada y panel)
-    photos/                PhotoUploader · PhotoGallery · EventPhotosScreen ·
-                           RewindPlayer · RewindCards
+    photos/                MediaUploader · PhotoGallery · ClipGallery ·
+                           EventPhotosScreen · RewindPlayer · RewindCards ·
+                           ClipCard · ShareButton
     ui/                    Button · Field · Modal · Badge · States
   lib/
     services/              Lógica de negocio (account · accounts · events ·
                            invitations · rsvp · stats · tickets · photos ·
-                           rewind · rewind-curation)
+                           rewind · rewind-curation · recap · soundtrack ·
+                           payments)
     pricing.ts             Planes, precios y contacto comercial
     rewind-selection.ts    Qué sale en el recuerdo (curado o automático)
+    invite-stage.ts        En qué punto está cada invitación
+    invite-message.ts      Plantilla del mensaje de WhatsApp
+    phone.ts               Teléfonos y enlaces de WhatsApp
+    csv.ts                 Exportación para Excel
     storage.ts             Almacenamiento (supabase | local)
     image.ts               Compresión de fotos en el navegador
+    video.ts               Compresión de videos en el navegador
+    brand.ts               Nombre y logo (PENDIENTES, en un solo sitio)
+    rate-limit.ts          Tope de peticiones de las rutas públicas
+    mercadopago.ts         Cliente REST del cobro
+    soundtrack-audio.ts    Onda, escucha y pista de audio del recuerdo
+    recap-recorder.ts      Grabación del canvas, un fotograma = un fotograma
+    crypto/field-crypto.ts Cifrado de campos sensibles en reposo
+    recap-film.ts          Línea de tiempo del video para redes (pura)
+    recap-render.ts        Dibujo del video para redes sobre un canvas
+    public-clip.ts         DTO de un video ya listo para pintarse
     share-code.ts          Código público del evento
     event-date.ts          Regla de cambio de fecha del evento
     themes.ts              Catálogo de temas (colores, copy, muestras)
@@ -846,13 +1301,23 @@ Todas las respuestas siguen el mismo formato: `{ data }` en éxito y
 | `POST` | `/api/tickets` | Admin | Abre un ticket con su primer mensaje. |
 | `PATCH` | `/api/tickets/[id]` | Admin | Cierra o reabre. Solo el suyo, salvo el equipo. |
 | `POST` | `/api/tickets/[id]/messages` | Admin | Responde en el hilo. |
-| `POST` | `/api/public/photos/firmar` | Público | Autoriza una subida y dice a dónde mandarla. |
-| `POST` | `/api/public/photos` | Público | Da de alta la foto ya subida. |
-| `PATCH` | `/api/photos/[id]` | Admin | Oculta o vuelve a mostrar una foto. |
-| `DELETE` | `/api/photos/[id]` | Admin | Borra la foto y su archivo. |
-| `PUT` | `/api/rewind` | Admin | Guarda qué fotos y mensajes salen en el recuerdo, y en qué orden. |
+| `POST` | `/api/public/photos/firmar` | Público | Autoriza una subida y dice a dónde mandarla. Con `kind: "VIDEO"` firma además la portada. |
+| `POST` | `/api/public/photos` | Público | Da de alta la foto o el video ya subidos. |
+| `PATCH` | `/api/photos/[id]` | Admin | Oculta o vuelve a mostrar una foto o un video. |
+| `DELETE` | `/api/photos/[id]` | Admin | Borra el archivo, y la portada si era un video. |
+| `PUT` | `/api/rewind` | Admin | Guarda qué fotos, videos y mensajes salen en el recuerdo, y en qué orden. |
+| `POST` | `/api/invitations/enviadas` | Admin | Marca o desmarca invitaciones como enviadas. |
+| `POST` | `/api/invitations/[id]/entrada` | Admin | Registra la llegada. Con 0 la deshace. |
+| `GET` | `/api/invitations/export` | Admin | La lista completa en CSV. |
+| `POST` | `/api/public/invitations/[slug]/visto` | Público | El invitado abrió su invitación. |
+| `POST` | `/api/pagos/checkout` | Admin | Abre un cobro y devuelve a dónde mandar al cliente. El importe sale del catálogo, no del cuerpo. |
+| `POST` | `/api/pagos/mercadopago` | Firmada | Aviso de Mercado Pago. **El único sitio donde se dan créditos.** |
+| `POST` | `/api/events/soundtrack/firmar` | Admin | Autoriza subir la canción del recuerdo. |
+| `PUT` | `/api/events/soundtrack` | Admin | Guarda la canción ya subida. |
+| `PATCH` | `/api/events/soundtrack` | Admin | Mueve el trozo que suena, sin volver a subir nada. |
+| `DELETE` | `/api/events/soundtrack` | Admin | Quita la música y borra su archivo. |
 | `PUT` | `/api/media/subir` | Firmada | Solo desarrollo: recibe el archivo. |
-| `GET` | `/api/media/[...path]` | Público | Solo desarrollo: sirve el archivo. |
+| `GET` | `/api/media/[...path]` | Público | Solo desarrollo: sirve el archivo. Atiende rangos (206), que es lo que necesita un `<video>` para poder saltar. |
 
 El RSVP es público a propósito: el “secreto” es el slug de la invitación. Una
 invitación tiene como máximo **un RSVP**, y el invitado puede cambiar su
@@ -891,7 +1356,15 @@ pueden repetirse ni siquiera dentro de un mismo lote—, la coherencia del
 catálogo de temas y de los planes, la regla de cambio de fecha —incluidos los
 casos que suelen fallar: el cruce de año, febrero bisiesto y guardar el
 formulario sin tocar la fecha— el código público del evento con su reparto de
-símbolos, y la regla de selección del recuerdo.
+símbolos, la regla de selección del recuerdo, y la línea de tiempo del video
+para redes: que los planos encadenen sin huecos, que el cierre nunca se recorte
+por mucho que sobren fotos, que el fundido no se coma un plano corto entero y
+que ningún formato salga apaisado; y el cifrado de campos —que va y vuelve, que
+detecta un dato alterado en la base, que no descifra con la clave equivocada y
+que convive con las filas que aún no se han migrado—.
+
+Los slugs tienen su propia prueba de que **nunca** salen sin azar: es el fallo
+más grave que ha tenido este sistema y no puede volver por un refactor.
 
 > **Pendiente:** no hay pruebas de integración del aislamiento entre cuentas,
 > que es la garantía más importante del sistema. Necesitan una base de datos de

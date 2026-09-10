@@ -71,7 +71,13 @@ function RsvpDialog({ onClose, invitation, onSuccess }: RsvpDialogProps) {
       const response = await fetch("/api/rsvp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...values, slug: invitation.slug }),
+        // Las dos mitades de la ruta: el slug del invitado solo identifica una
+        // invitación dentro de su evento.
+        body: JSON.stringify({
+          ...values,
+          evento: invitation.event.slug,
+          slug: invitation.slug,
+        }),
       });
 
       const payload = (await response.json()) as {

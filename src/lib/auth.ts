@@ -29,7 +29,7 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
 export async function getSession(): Promise<SessionPayload | null> {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user) return null;
-  return { sub: session.user.id, email: session.user.email };
+  return { sub: session.user.id, email: session.user.email, token: session.session?.token };
 }
 
 /** Lanza si no hay sesión: lo usan los route handlers del panel. */

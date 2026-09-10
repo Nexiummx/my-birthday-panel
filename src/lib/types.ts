@@ -3,6 +3,8 @@ import type { ThemeCopy } from "@/lib/themes";
 
 /** Datos del evento ya formateados para el cliente. */
 export interface PublicEvent {
+  /** Primera mitad de la ruta pública: /e/[slug]/i/[invitado]. */
+  slug: string;
   name: string;
   /** Parte principal del nombre: "Maya · 29" → "Maya". */
   title: string;
@@ -10,11 +12,15 @@ export interface PublicEvent {
   highlight: string | null;
   subtitle: string | null;
   dateLabel: string;
+  /** ISO de la fecha del evento. La cuenta atrás necesita un instante, no un texto. */
+  dateIso: string;
   time: string;
   location: string;
   locationUrl: string | null;
   dressCode: string | null;
   dressCodeUrl: string | null;
+  giftRegistryUrl: string | null;
+  giftRegistryLabel: string | null;
   invitationImage: string | null;
   /** Estética con la que se renderiza la experiencia. */
   theme: EventThemeValue;

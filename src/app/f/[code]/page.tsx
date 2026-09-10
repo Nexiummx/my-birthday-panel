@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { EventPhotosScreen } from "@/components/photos/EventPhotosScreen";
-import { getEventByShareCode, listPhotos } from "@/lib/services/photos";
+import { getEventByShareCode, listClips, listPhotos } from "@/lib/services/photos";
+import { toPublicClip } from "@/lib/public-clip";
 import { toPublicPhoto } from "@/lib/public-photo";
 
 // Las fotos aparecen en cuanto alguien sube: nada que prerrenderizar.
@@ -35,7 +36,8 @@ export default async function EventPhotosPage({ params }: Props) {
     notFound();
   }
 
-  const photos = await listPhotos(event.id);
+  const [photos, clips] = await Promise.all([listPhotos(event.id), listClips(event.id)]);
 
-  return <EventPhotosScreen event={event} photos={photos.map(toPublicPhoto)} />;
+  return <EventPhotosScreen event={event} photos={photos.map(toPublicPhoto)}
+      clips={clips.map(toPublicClip)} />;
 }

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Images, Quote } from "lucide-react";
+import { ClipCard } from "@/components/photos/ClipCard";
 import { ShareButton } from "@/components/photos/ShareButton";
 import type { RewindCard } from "@/lib/services/rewind";
 
@@ -19,7 +20,15 @@ import type { RewindCard } from "@/lib/services/rewind";
 
 const DEPTH = "translate3d(calc(var(--parallax-x,0) * var(--depth,8px)), calc(var(--parallax-y,0) * var(--depth,8px)), 0)";
 
-export function RewindCardView({ card }: { card: RewindCard }) {
+export function RewindCardView({
+  card,
+  muted,
+  paused,
+}: {
+  card: RewindCard;
+  muted: boolean;
+  paused: boolean;
+}) {
   switch (card.kind) {
     case "intro":
       return (
@@ -126,6 +135,11 @@ export function RewindCardView({ card }: { card: RewindCard }) {
           </div>
         </div>
       );
+
+    case "clip":
+      // El video es su propio componente porque necesita estado y un ref, y el
+      // resto de las pantallas son presentación pura.
+      return <ClipCard clip={card.clip} muted={muted} paused={paused} />;
 
     case "photos":
       return (

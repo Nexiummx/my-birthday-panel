@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import gsap from "gsap";
 import Link from "next/link";
 import { Camera, Sparkles } from "lucide-react";
@@ -11,6 +11,7 @@ import { ThemeCurtain } from "@/components/invitation/scenes/DrapeCurtain";
 import { RSVPModal } from "@/components/invitation/RSVPModal";
 import { Button } from "@/components/ui/Button";
 import { usePrefersReducedMotion, useScrollLock } from "@/lib/hooks";
+import { invitationPath } from "@/lib/utils";
 import type { PublicInvitation } from "@/lib/types";
 import type { InvitationStatusValue } from "@/lib/validations";
 
@@ -40,6 +41,27 @@ export function InvitationExperience({ invitation }: { invitation: PublicInvitat
   const sealRef = useRef<HTMLDivElement | null>(null);
 
   const prefersReducedMotion = usePrefersReducedMotion();
+  const trackedRef = useRef(false);
+
+  // Se avisa de que el invitado ABRIÓ su invitación. Desde el navegador y no
+  // desde el servidor a propósito: WhatsApp y compañía piden el HTML para armar
+  // la miniatura, y contarlos le haría creer al anfitrión que su invitado ya la
+  // vio — dejaría de insistirle a quien nunca la recibió. Los bots no ejecutan
+  // JavaScript, así que este dato es limpio.
+  useEffect(() => {
+    // El ref evita la doble llamada del modo estricto en desarrollo.
+    if (trackedRef.current) return;
+    trackedRef.current = true;
+
+    const ruta = `${encodeURIComponent(invitation.event.slug)}/${encodeURIComponent(invitation.slug)}`;
+    void fetch(`/api/public/invitations/${ruta}/visto`, {
+      method: "POST",
+      // keepalive: si cierra la invitación de inmediato, la petición sale igual.
+      keepalive: true,
+    }).catch(() => {
+      /* que no se cuente una visita no puede romperle la invitación a nadie */
+    });
+  }, [invitation.event.slug, invitation.slug]);
 
   // Con "reducir movimiento" activo la invitación se muestra directamente:
   // estado derivado, sin efectos ni renders en cascada.
@@ -112,7 +134,10 @@ export function InvitationExperience({ invitation }: { invitation: PublicInvitat
             <InvitationCard
               invitation={invitation}
               action={
-                <>
+                // En columna: el contenedor del CTA es una fila, y sin esto el
+                // enlace de fotos se coloca al costado del botón en vez de
+                // debajo, con el icono suelto entre los dos.
+                <div className="flex flex-col items-center">
                   <RsvpAction
                     rsvp={rsvp}
                     onOpen={() => setRsvpOpen(true)}
@@ -123,7 +148,7 @@ export function InvitationExperience({ invitation }: { invitation: PublicInvitat
                       preguntárselo. */}
                   {invitation.event.photosEnabled && (
                     <Link
-                      href={`/i/${invitation.slug}/fotos`}
+                      href={`${invitationPath(invitation.event.slug, invitation.slug)}/fotos`}
                       tabIndex={revealed ? undefined : -1}
                       className="mt-3 inline-flex items-center gap-2 font-sans text-[11px] uppercase tracking-[0.24em] text-ink-500 underline decoration-gold-400/50 underline-offset-4 transition-colors hover:text-ink-900"
                     >
@@ -131,7 +156,7 @@ export function InvitationExperience({ invitation }: { invitation: PublicInvitat
                       Fotos de la fiesta
                     </Link>
                   )}
-                </>
+                </div>
               }
             />
           </div>

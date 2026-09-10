@@ -59,9 +59,13 @@ function Ornament() {
  * Miniatura que ven los invitados al recibir el enlace por WhatsApp: el marco
  * botánico de la invitación con su nombre y los datos del evento.
  */
-export default async function Image({ params }: { params: Promise<{ slug: string }> }) {
-  const { slug } = await params;
-  const record = await getPublicInvitation(slug);
+export default async function Image({
+  params,
+}: {
+  params: Promise<{ evento: string; slug: string }>;
+}) {
+  const { evento, slug } = await params;
+  const record = await getPublicInvitation(evento, slug);
   const invitation = record ? toPublicInvitation(record) : null;
   const event = invitation?.event;
 

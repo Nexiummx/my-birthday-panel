@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowRight, Check, Clapperboard, RotateCcw, Save, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Clapperboard, Film, RotateCcw, Save, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
 
@@ -12,6 +12,16 @@ export interface CurablePhoto {
   url: string;
   authorName: string;
   caption: string | null;
+  rewindOrder: number | null;
+}
+
+export interface CurableClip {
+  id: string;
+  url: string;
+  posterUrl: string | null;
+  authorName: string;
+  caption: string | null;
+  seconds: number;
   rewindOrder: number | null;
 }
 
@@ -44,34 +54,44 @@ function initialSelection(items: { id: string; rewindOrder: number | null }[]): 
  */
 export function RewindComposer({
   photos,
+  clips,
   messages,
   rewindUrl,
   maxPhotos,
+  maxClips,
   maxMessages,
 }: {
   photos: CurablePhoto[];
+  clips: CurableClip[];
   messages: CurableMessage[];
   rewindUrl: string;
   maxPhotos: number;
+  maxClips: number;
   maxMessages: number;
 }) {
   const router = useRouter();
   const [photoIds, setPhotoIds] = useState<string[]>(() => initialSelection(photos));
+  const [clipIds, setClipIds] = useState<string[]>(() => initialSelection(clips));
   const [messageIds, setMessageIds] = useState<string[]>(() => initialSelection(messages));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const photoById = useMemo(() => new Map(photos.map((photo) => [photo.id, photo])), [photos]);
-  const automatic = photoIds.length === 0 && messageIds.length === 0;
+  const automatic = photoIds.length === 0 && clipIds.length === 0 && messageIds.length === 0;
 
   // Se compara contra lo que hay en el servidor, que llega por props: tras
   // guardar, router.refresh() trae los datos nuevos y el botón se apaga solo.
   // Un estado propio de "ya guardé" se desincronizaría del servidor.
   const original = useMemo(
-    () => JSON.stringify([initialSelection(photos), initialSelection(messages)]),
-    [photos, messages]
+    () =>
+      JSON.stringify([
+        initialSelection(photos),
+        initialSelection(clips),
+        initialSelection(messages),
+      ]),
+    [photos, clips, messages]
   );
-  const dirty = JSON.stringify([photoIds, messageIds]) !== original;
+  const dirty = JSON.stringify([photoIds, clipIds, messageIds]) !== original;
 
   const toggle = (
     id: string,
@@ -107,7 +127,7 @@ export function RewindComposer({
       const response = await fetch("/api/rewind", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ photoIds, messageIds }),
+        body: JSON.stringify({ photoIds, clipIds, messageIds }),
       });
       if (!response.ok) {
         const payload = (await response.json().catch(() => null)) as { error?: string } | null;
@@ -122,6 +142,7 @@ export function RewindComposer({
 
   const reset = () => {
     setPhotoIds([]);
+    setClipIds([]);
     setMessageIds([]);
     setError(null);
   };
@@ -141,7 +162,7 @@ export function RewindComposer({
           <p className="mt-1 max-w-xl font-sans text-sm text-ink-500">
             {automatic
               ? "Ahora mismo elegimos nosotros: las fotos más recientes y los mensajes más largos. En cuanto marques algo aquí abajo, manda tu selección."
-              : `Se muestran ${photoIds.length} ${photoIds.length === 1 ? "foto" : "fotos"} y ${messageIds.length} ${messageIds.length === 1 ? "mensaje" : "mensajes"}, en este orden. La primera foto es la portada.`}
+              : `Se muestran ${photoIds.length} ${photoIds.length === 1 ? "foto" : "fotos"}, ${clipIds.length} ${clipIds.length === 1 ? "video" : "videos"} y ${messageIds.length} ${messageIds.length === 1 ? "mensaje" : "mensajes"}, en este orden. La primera foto es la portada.`}
           </p>
         </div>
 
@@ -279,6 +300,68 @@ export function RewindComposer({
           </ul>
         )}
       </section>
+
+      {clips.length > 0 && (
+        <section aria-labelledby="videos" className="space-y-3">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 id="videos" className="font-serif text-xl text-ink-900">
+              Videos
+            </h2>
+            <p className="font-sans text-xs text-ink-500">
+              {clipIds.length} de {maxClips} elegidos
+            </p>
+          </div>
+
+          <ul className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6">
+            {clips.map((clip) => {
+              const position = clipIds.indexOf(clip.id);
+              const chosen = position !== -1;
+              return (
+                <li key={clip.id}>
+                  <button
+                    type="button"
+                    onClick={() => toggle(clip.id, clipIds, setClipIds, maxClips)}
+                    aria-pressed={chosen}
+                    aria-label={`Video de ${clip.authorName}, ${clip.seconds} segundos`}
+                    className={cn(
+                      "relative block w-full overflow-hidden rounded-xl border-2 transition-colors",
+                      chosen ? "border-olive-600" : "border-transparent hover:border-cream-300"
+                    )}
+                  >
+                    {clip.posterUrl ? (
+                      /* eslint-disable-next-line @next/next/no-img-element -- ver PhotoGallery */
+                      <img
+                        src={clip.posterUrl}
+                        alt=""
+                        loading="lazy"
+                        decoding="async"
+                        className={cn(
+                          "aspect-square w-full object-cover",
+                          !chosen && "opacity-75"
+                        )}
+                      />
+                    ) : (
+                      <span className="flex aspect-square w-full items-center justify-center bg-cream-200">
+                        <Film className="size-5 text-ink-500" aria-hidden="true" />
+                      </span>
+                    )}
+
+                    <span className="absolute bottom-1 left-1 rounded-full bg-ink-900/80 px-1.5 py-0.5 font-sans text-[10px] tabular-nums text-cream-50">
+                      {clip.seconds}s
+                    </span>
+
+                    {chosen && (
+                      <span className="absolute right-1 top-1 flex size-5 items-center justify-center rounded-full bg-olive-600 text-cream-50">
+                        <Check className="size-3" aria-hidden="true" />
+                      </span>
+                    )}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
 
       <section aria-labelledby="mensajes" className="space-y-3">
         <div className="flex flex-wrap items-baseline justify-between gap-2">

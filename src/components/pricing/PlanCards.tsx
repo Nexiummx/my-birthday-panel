@@ -1,4 +1,5 @@
 import { Check } from "lucide-react";
+import { PlanCheckoutButton } from "@/components/pricing/PlanCheckoutButton";
 import { PLANS, contactHref, formatPrice, type Plan } from "@/lib/pricing";
 import { cn } from "@/lib/utils";
 
@@ -11,10 +12,17 @@ export function PlanCards({
   accountEmail,
   ctaLabel = "Contratar",
   plans = PLANS,
+  checkout = false,
 }: {
   accountEmail?: string;
   ctaLabel?: string;
   plans?: readonly Plan[];
+  /**
+   * true = pagar en línea con Mercado Pago. Solo lo pone el panel, y solo
+   * cuando hay credenciales: en la portada no hay cuenta a la que acreditarle
+   * los créditos, así que ahí siempre se escribe primero.
+   */
+  checkout?: boolean;
 }) {
   return (
     <ul className="grid items-start gap-4 lg:grid-cols-3">
@@ -53,19 +61,23 @@ export function PlanCards({
             ))}
           </ul>
 
-          <a
-            href={contactHref({ plan, accountEmail })}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={cn(
-              "mt-6 inline-flex items-center justify-center rounded-full px-5 py-3 font-sans text-sm font-medium transition-colors",
-              plan.featured
-                ? "bg-olive-600 text-cream-50 hover:bg-olive-700"
-                : "border border-cream-300 text-ink-700 hover:border-gold-400 hover:text-ink-900"
-            )}
-          >
-            {ctaLabel}
-          </a>
+          {checkout ? (
+            <PlanCheckoutButton planId={plan.id} label={ctaLabel} featured={plan.featured} />
+          ) : (
+            <a
+              href={contactHref({ plan, accountEmail })}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={cn(
+                "mt-6 inline-flex items-center justify-center rounded-full px-5 py-3 font-sans text-sm font-medium transition-colors",
+                plan.featured
+                  ? "bg-olive-600 text-cream-50 hover:bg-olive-700"
+                  : "border border-cream-300 text-ink-700 hover:border-gold-400 hover:text-ink-900"
+              )}
+            >
+              {ctaLabel}
+            </a>
+          )}
         </li>
       ))}
     </ul>

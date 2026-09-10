@@ -123,8 +123,17 @@ async function seedEvent(ownerId: string) {
   const event = existing
     ? await prisma.event.update({ where: { id: existing.id }, data })
     // originalDate ancla la regla de cambio de fecha y solo se fija al crear.
+    // El slug va solo aquí, en el alta: es la ruta pública del evento y
+    // reescribirla en un evento que ya existe rompería las invitaciones que ya
+    // se enviaron. El resto de campos sí se refrescan.
     : await prisma.event.create({
-        data: { ...data, ownerId, originalDate: data.date, shareCode: newShareCode() },
+        data: {
+          ...data,
+          ownerId,
+          slug: "maya-29",
+          originalDate: data.date,
+          shareCode: newShareCode(),
+        },
       });
 
   console.log(`✔ Evento listo: ${event.name}`);
@@ -134,7 +143,9 @@ async function seedEvent(ownerId: string) {
 async function seedInvitations(eventId: string) {
   for (const seed of EVENT_SLUG_SEEDS) {
     const invitation = await prisma.invitation.upsert({
-      where: { slug: seed.slug },
+      // El slug del invitado es único dentro de su evento, así que la clave
+      // para reconocerlo son los dos campos juntos.
+      where: { eventId_slug: { eventId, slug: seed.slug } },
       create: {
         eventId,
         slug: seed.slug,
@@ -196,7 +207,7 @@ async function main() {
 
   const base = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ?? "http://localhost:3000";
   if (withDemoInvitations) {
-    console.log(`\n→ Invitación de ejemplo: ${base}/i/mariana-lopez`);
+    console.log(`\n→ Invitación de ejemplo: ${base}/e/${event.slug}/i/mariana-lopez`);
   }
   console.log(`→ Panel administrativo:  ${base}/admin/login\n`);
 }

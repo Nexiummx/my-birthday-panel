@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import gsap from "gsap";
-import { ChevronLeft, ChevronRight, Pause } from "lucide-react";
+import { ChevronLeft, ChevronRight, Pause, Volume2, VolumeX } from "lucide-react";
 import { RewindCardView } from "@/components/photos/RewindCards";
 import { Scene } from "@/components/invitation/scenes/Scene";
 import type { RewindCard, RewindDeck } from "@/lib/services/rewind";
@@ -29,6 +29,11 @@ import { cn } from "@/lib/utils";
 /** Cuánto dura cada pantalla. Las que se leen necesitan más aire. */
 function durationOf(card: RewindCard): number {
   switch (card.kind) {
+    // Un clip dura lo que dura, con un suelo y un techo: menos de cuatro
+    // segundos no da tiempo ni a entender qué se está viendo, y más de doce
+    // convierte el recuerdo en una lista de reproducción.
+    case "clip":
+      return Math.min(Math.max(card.clip.seconds || 6, 4), 12);
     case "message":
       return 6.5;
     case "hero":
@@ -45,10 +50,13 @@ function durationOf(card: RewindCard): number {
   }
 }
 
-/** Las fotos que trae una pantalla, para poder adelantarlas. */
+/** Las imágenes que trae una pantalla, para poder adelantarlas.
+ *  De un clip se adelanta la portada, no el video: descargar por adelantado
+ *  varios megas de video con datos móviles cuesta caro y puede que ni se vea. */
 function photoUrlsOf(card: RewindCard): string[] {
   if (card.kind === "hero") return [card.photo.url];
   if (card.kind === "photos") return card.photos.map((photo) => photo.url);
+  if (card.kind === "clip") return card.clip.posterUrl ? [card.clip.posterUrl] : [];
   return [];
 }
 
@@ -58,6 +66,10 @@ const SWIPE_PX = 48;
 export function RewindPlayer({ deck }: { deck: RewindDeck }) {
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
+  // Empieza en silencio porque es lo único que los navegadores dejan arrancar
+  // solo, y se recuerda entre pantallas: quien lo enciende en el primer clip no
+  // tiene por qué volver a encenderlo en el segundo.
+  const [soundOn, setSoundOn] = useState(false);
 
   const rootRef = useRef<HTMLDivElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
@@ -281,7 +293,7 @@ export function RewindPlayer({ deck }: { deck: RewindDeck }) {
           {/* key fuerza el remontaje: cada pantalla arranca limpia y GSAP anima
               elementos nuevos en vez de reciclar los de la anterior. */}
           <div ref={stageRef} key={index} className="h-full w-full overflow-y-auto">
-            <RewindCardView card={deck.cards[index]} />
+            <RewindCardView card={deck.cards[index]} muted={!soundOn} paused={paused} />
           </div>
         </div>
 
@@ -296,9 +308,28 @@ export function RewindPlayer({ deck }: { deck: RewindDeck }) {
             <ChevronLeft className="size-5" aria-hidden="true" />
           </ControlButton>
 
-          <p className="font-sans text-[11px] uppercase tracking-[0.24em] opacity-75">
-            {index + 1} / {total}
-          </p>
+          <div className="flex items-center gap-3">
+            {/* Solo cuando hay algo que oír. Un botón de sonido en una pantalla
+                de texto no haría nada y solo sembraría dudas. */}
+            {deck.cards[index]?.kind === "clip" && (
+              <button
+                type="button"
+                onClick={() => setSoundOn((current) => !current)}
+                aria-label={soundOn ? "Silenciar" : "Activar sonido"}
+                aria-pressed={soundOn}
+                className="rounded-full border border-cream-100/35 bg-black/25 p-2 backdrop-blur-sm transition-colors hover:border-gold-400 hover:text-gold-400"
+              >
+                {soundOn ? (
+                  <Volume2 className="size-4" aria-hidden="true" />
+                ) : (
+                  <VolumeX className="size-4" aria-hidden="true" />
+                )}
+              </button>
+            )}
+            <p className="font-sans text-[11px] uppercase tracking-[0.24em] opacity-75">
+              {index + 1} / {total}
+            </p>
+          </div>
 
           <ControlButton onClick={() => go(index + 1)} disabled={atEnd} label="Siguiente">
             <ChevronRight className="size-5" aria-hidden="true" />

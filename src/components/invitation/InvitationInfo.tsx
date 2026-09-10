@@ -1,4 +1,5 @@
-import { CalendarDays, Clock, MapPin, Shirt, Ticket } from "lucide-react";
+import { CalendarDays, Clock, Gift, MapPin, Shirt, Ticket } from "lucide-react";
+import { Countdown } from "@/components/invitation/Countdown";
 import type { PublicEvent, PublicInvitation } from "@/lib/types";
 
 /**
@@ -86,7 +87,26 @@ export function InvitationInfo({
         <DetailRow icon={<Ticket className="size-4" aria-hidden="true" />} term="Pases">
           {passLabel}
         </DetailRow>
+
+        {event.giftRegistryUrl && (
+          <DetailRow icon={<Gift className="size-4" aria-hidden="true" />} term="Regalos" hint>
+            <a
+              href={event.giftRegistryUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline decoration-gold-400 decoration-1 underline-offset-4 transition-colors hover:text-gold-600"
+            >
+              {event.giftRegistryLabel || "Mesa de regalos"}
+            </a>
+          </DetailRow>
+        )}
       </dl>
+
+      {/* La cuenta atrás va después de los datos y antes del mensaje: es lo
+          último que se lee antes de decidir, que es justo cuando aporta. */}
+      <div className="mt-4">
+        <Countdown dateIso={event.dateIso} />
+      </div>
 
       {invitation.personalMessage && (
         <p className="mt-3 max-w-[30ch] font-serif text-sm italic leading-relaxed text-ink-700">

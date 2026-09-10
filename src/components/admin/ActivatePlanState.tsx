@@ -1,6 +1,7 @@
 import { Sparkles } from "lucide-react";
 import { PlanCards } from "@/components/pricing/PlanCards";
 import { CONTACT, CONTACT_LABEL, contactHref } from "@/lib/pricing";
+import { mercadoPagoIsConfigured } from "@/lib/mercadopago";
 
 /**
  * Lo que ve una cuenta con cupo 0: recién registrada o sin plan vigente.
@@ -11,6 +12,11 @@ import { CONTACT, CONTACT_LABEL, contactHref } from "@/lib/pricing";
  * el enlace de contacto con el correo de la cuenta ya escrito.
  */
 export function ActivatePlanState({ accountEmail }: { accountEmail: string }) {
+  // Con Mercado Pago configurado se paga aquí mismo; si no, sigue el camino de
+  // siempre —escribir y que el equipo suba el cupo—. La pantalla nunca queda
+  // sin salida por una variable de entorno que falte.
+  const checkout = mercadoPagoIsConfigured();
+
   return (
     <div className="space-y-8">
       <div className="rounded-2xl border border-dashed border-cream-300 bg-cream-50/60 px-6 py-8 text-center">
@@ -19,15 +25,20 @@ export function ActivatePlanState({ accountEmail }: { accountEmail: string }) {
           Tu cuenta está lista, falta activar tu plan
         </h2>
         <p className="mx-auto mt-2 max-w-xl font-sans text-sm leading-relaxed text-ink-500">
-          Elige el plan que te sirva y escríbenos por {CONTACT_LABEL}. En cuanto quede el pago
-          acreditamos tus eventos y podrás crear el tuyo desde esta misma pantalla.
+          {checkout
+            ? "Elige tu plan y págalo aquí mismo con tarjeta, transferencia o en efectivo. Tus eventos se activan en cuanto el pago queda confirmado."
+            : `Elige el plan que te sirva y escríbenos por ${CONTACT_LABEL}. En cuanto quede el pago acreditamos tus eventos y podrás crear el tuyo desde esta misma pantalla.`}
         </p>
         <p className="mt-3 font-sans text-xs text-ink-500">
           Tu cuenta es <span className="text-ink-700">{accountEmail}</span> · {CONTACT.email}
         </p>
       </div>
 
-      <PlanCards accountEmail={accountEmail} ctaLabel="Quiero este plan" />
+      <PlanCards
+        accountEmail={accountEmail}
+        ctaLabel={checkout ? "Pagar este plan" : "Quiero este plan"}
+        checkout={checkout}
+      />
 
       <p className="text-center font-sans text-xs text-ink-500">
         ¿No sabes cuál te toca?{" "}

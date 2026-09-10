@@ -20,7 +20,14 @@
     "accounts": "tsx scripts/accounts.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "seed:fotos": "tsx scripts/seed-photos.ts"
+    "seed:fotos": "tsx scripts/seed-photos.ts",
+    "rotar:slugs": "tsx scripts/rotar-slugs.ts",
+    "cifrar:datos": "tsx scripts/cifrar-datos.ts",
+    "seed:demo": "tsx scripts/seed-demo.ts",
+    "seed:videos": "tsx scripts/seed-videos.ts",
+    "ver:rutas": "tsx scripts/ver-rutas.ts",
+    "revisar:prod": "tsx scripts/revisar-produccion.ts",
+    "probar:almacenamiento": "tsx scripts/probar-almacenamiento.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",

@@ -14,8 +14,10 @@ import {
   MailOpen,
   LogOut,
   Mail,
+  DoorOpen,
   Menu,
   UserCog,
+  Send,
   Users,
   X,
 } from "lucide-react";
@@ -25,7 +27,9 @@ import { cn } from "@/lib/utils";
 const LINKS = [
   { href: "/admin", label: "Resumen", icon: LayoutDashboard },
   { href: "/admin/invitaciones", label: "Invitaciones", icon: Mail },
+  { href: "/admin/envio", label: "Envío", icon: Send },
   { href: "/admin/confirmaciones", label: "Confirmaciones", icon: CalendarCheck },
+  { href: "/admin/entrada", label: "Entrada", icon: DoorOpen },
   { href: "/admin/fotos", label: "Fotos", icon: Images },
   { href: "/admin/recuerdo", label: "Recuerdo", icon: Clapperboard },
   { href: "/admin/evento", label: "Eventos", icon: CalendarDays },

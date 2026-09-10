@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { storageIsLocal, verifyLocalPath, writeLocalFile } from "@/lib/storage";
-import { MAX_PHOTO_BYTES } from "@/lib/services/photos";
+import { MAX_UPLOAD_BYTES } from "@/lib/services/photos";
 
 /**
  * Recibe el archivo cuando el almacenamiento es el local de desarrollo.
@@ -26,7 +26,7 @@ export async function PUT(request: Request) {
   }
 
   const body = Buffer.from(await request.arrayBuffer());
-  if (body.byteLength === 0 || body.byteLength > MAX_PHOTO_BYTES) {
+  if (body.byteLength === 0 || body.byteLength > MAX_UPLOAD_BYTES) {
     return NextResponse.json({ error: "Archivo fuera de rango" }, { status: 413 });
   }
 

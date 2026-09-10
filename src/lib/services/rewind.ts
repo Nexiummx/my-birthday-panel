@@ -1,6 +1,8 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import { listPhotos, photoStats } from "@/lib/services/photos";
+import { decryptNullable } from "@/lib/crypto/field-crypto";
+import { listClips, listPhotos, photoStats } from "@/lib/services/photos";
+import { toPublicClip, type PublicClip } from "@/lib/public-clip";
 import { toPublicPhoto, type PublicPhoto } from "@/lib/public-photo";
 import { selectForRewind } from "@/lib/rewind-selection";
 import { formatInvitationDate } from "@/lib/utils";
@@ -25,6 +27,7 @@ export type RewindCard =
   | { kind: "names"; eyebrow: string; title: string; names: string[] }
   | { kind: "message"; author: string; text: string }
   | { kind: "hero"; photo: PublicPhoto }
+  | { kind: "clip"; clip: PublicClip }
   | { kind: "photos"; photos: PublicPhoto[] }
   | { kind: "author"; name: string; count: number }
   | { kind: "outro"; title: string; note: string; galleryHref: string; shareHref: string; shareTitle: string };
@@ -41,6 +44,9 @@ const PHOTOS_PER_CARD = 4;
 const MAX_PHOTO_CARDS = 3;
 /** Mensajes de invitados que se muestran, de los más largos a los más cortos. */
 const MAX_MESSAGES = 3;
+/** Clips. Pocos: cada uno para el ritmo lo que dura, y el recuerdo se hace
+ *  largo enseguida. */
+const MAX_CLIPS = 3;
 
 /** "Maya · 29" → ["Maya", "29"], igual que en la invitación. */
 function splitName(name: string): [string, string | null] {
@@ -55,7 +61,7 @@ export async function buildRewind(event: {
   theme: string;
   shareCode: string;
 }): Promise<RewindDeck> {
-  const [invitations, confirmedRsvps, guestSum, photos, stats] = await Promise.all([
+  const [invitations, rawRsvps, guestSum, photos, clips, stats] = await Promise.all([
     prisma.invitation.count({ where: { eventId: event.id } }),
     prisma.rsvp.findMany({
       where: { status: "CONFIRMED", invitation: { eventId: event.id } },
@@ -72,8 +78,16 @@ export async function buildRewind(event: {
       where: { status: "CONFIRMED", invitation: { eventId: event.id } },
     }),
     listPhotos(event.id),
+    listClips(event.id),
     photoStats(event.id),
   ]);
+
+  // Los mensajes vienen cifrados de la base: se abren aquí, una vez, antes de
+  // que nadie los ordene por longitud o los recorte.
+  const confirmedRsvps = rawRsvps.map((rsvp) => ({
+    ...rsvp,
+    comment: decryptNullable(rsvp.comment),
+  }));
 
   const people = guestSum._sum.guestCount ?? 0;
   const names = confirmedRsvps.map((rsvp) => rsvp.invitation.guestName);
@@ -130,9 +144,11 @@ export async function buildRewind(event: {
       value: stats.visible,
       unit: stats.visible === 1 ? "foto" : "fotos",
       note:
-        stats.topAuthors.length > 1
-          ? `subidas por ${stats.topAuthors.length} personas`
-          : null,
+        stats.visibleVideos > 0
+          ? `y ${stats.visibleVideos} ${stats.visibleVideos === 1 ? "video" : "videos"}`
+          : stats.topAuthors.length > 1
+            ? `subidas por ${stats.topAuthors.length} personas`
+            : null,
     });
 
     // Las que eligió el anfitrión, en su orden; si no eligió, las más recientes.
@@ -169,10 +185,29 @@ export async function buildRewind(event: {
     }
   }
 
+  // Los videos van después de las fotos: son lo que más se recuerda y cierran
+  // mejor. Misma regla de curación que todo lo demás —si el anfitrión eligió,
+  // mandan los suyos— y aquí la automática prefiere los cortos, que son los que
+  // no rompen el ritmo de unas stories.
+  if (clips.length > 0) {
+    const elegidos = selectForRewind(clips, () =>
+      [...clips]
+        .sort((a, b) => (a.durationMs ?? 0) - (b.durationMs ?? 0))
+        .slice(0, MAX_CLIPS)
+    );
+
+    for (const clip of elegidos.slice(0, MAX_CLIPS)) {
+      cards.push({ kind: "clip", clip: toPublicClip(clip) });
+    }
+  }
+
   cards.push({
     kind: "outro",
     title: "Hasta la próxima",
-    note: stats.visible > 0 ? "Todas las fotos siguen aquí" : "Gracias por venir",
+    note:
+      stats.visible > 0 || stats.visibleVideos > 0
+        ? "Todo sigue aquí"
+        : "Gracias por venir",
     galleryHref: `/f/${event.shareCode}`,
     shareHref: `/r/${event.shareCode}`,
     shareTitle: `El recuerdo de ${event.name}`,

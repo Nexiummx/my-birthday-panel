@@ -1,4 +1,5 @@
-import { handleError, ok, parseBody } from "@/lib/api";
+import { handleError, ok, parseBody , tooMany } from "@/lib/api";
+import { LIMITS, rateLimit } from "@/lib/rate-limit";
 import { createUploadTicket, resolveUploadContext } from "@/lib/services/photos";
 import { signPhotoSchema } from "@/lib/validations";
 
@@ -11,6 +12,10 @@ import { signPhotoSchema } from "@/lib/validations";
  */
 export async function POST(request: Request) {
   try {
+    // Ruta pública: sin tope, probar enlaces sale gratis. Ver lib/rate-limit.ts.
+    const limite = await rateLimit("subida", request, LIMITS.subida.max, LIMITS.subida.windowMs);
+    if (!limite.ok) return tooMany(limite.retryAfter);
+
     const input = await parseBody(request, signPhotoSchema);
     const context = await resolveUploadContext(input);
     return ok(await createUploadTicket(context, input));

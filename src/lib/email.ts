@@ -15,6 +15,15 @@ const resend = apiKey ? new Resend(apiKey) : null;
 
 async function send(to: string, subject: string, html: string, fallbackUrl: string) {
   if (!resend) {
+    // En producción esto NO puede pasar de largo. El enlace que se imprimiría
+    // es el de restablecer contraseña: quien lo lea en los registros de Vercel
+    // se queda con la cuenta. Mejor fallar ruidosamente que dejar la llave
+    // escrita en el log.
+    if (process.env.NODE_ENV === "production") {
+      console.error("[correo] Falta RESEND_API_KEY en producción: no se envía nada.");
+      throw new Error("No se pudo enviar el correo. Inténtalo de nuevo en un momento.");
+    }
+
     console.info(
       `\n[correo] Sin RESEND_API_KEY, no se envía nada.\n  Para: ${to}\n  Asunto: ${subject}\n  Enlace: ${fallbackUrl}\n`
     );
