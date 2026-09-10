@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Download } from "lucide-react";
 import { NoEventState } from "@/components/admin/NoEventState";
+import { getQuota } from "@/lib/services/events";
 import { SendBoard } from "@/components/admin/SendBoard";
 import { listInvitations } from "@/lib/services/invitations";
 import { toAdminInvitation } from "@/lib/admin-invitation";
@@ -17,7 +18,7 @@ export const metadata: Metadata = {
 
 export default async function SendPage() {
   const { session, event } = await requirePanelContext();
-  if (!event) return <NoEventState />;
+  if (!event) return <NoEventState quotaLimit={(await getQuota(session.sub)).limit} />;
 
   const invitations = await listInvitations(session.sub, event.id);
 

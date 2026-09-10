@@ -3,6 +3,7 @@ import { InvitationTable } from "@/components/admin/InvitationTable";
 import { listInvitations } from "@/lib/services/invitations";
 import { toAdminInvitation } from "@/lib/admin-invitation";
 import { NoEventState } from "@/components/admin/NoEventState";
+import { getQuota } from "@/lib/services/events";
 import { requirePanelContext } from "@/lib/panel";
 
 export const dynamic = "force-dynamic";
@@ -15,7 +16,7 @@ export const metadata: Metadata = {
 export default async function InvitationsPage() {
   const { session, event } = await requirePanelContext();
 
-  if (!event) return <NoEventState />;
+  if (!event) return <NoEventState quotaLimit={(await getQuota(session.sub)).limit} />;
 
   const invitations = (await listInvitations(session.sub, event.id)).map(toAdminInvitation);
 

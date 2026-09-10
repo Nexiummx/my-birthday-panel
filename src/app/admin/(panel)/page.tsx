@@ -2,7 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { CalendarCheck, Clock3, Mail, Send, TrendingUp, UserX, Users } from "lucide-react";
 import { StatsCard } from "@/components/admin/StatsCard";
+import { OnboardingGuide } from "@/components/admin/OnboardingGuide";
 import { getDashboardStats } from "@/lib/services/stats";
+import { getQuota } from "@/lib/services/events";
+import { onboardingProgress } from "@/lib/onboarding";
 import { requirePanelContext } from "@/lib/panel";
 import { formatLongDate } from "@/lib/utils";
 
@@ -15,7 +18,43 @@ export const metadata: Metadata = {
 
 export default async function DashboardPage() {
   const { session, event } = await requirePanelContext();
-  const stats = await getDashboardStats(session.sub, event?.id ?? null);
+  const [stats, quota] = await Promise.all([
+    getDashboardStats(session.sub, event?.id ?? null),
+    getQuota(session.sub),
+  ]);
+
+  const progress = onboardingProgress({
+    quotaLimit: quota.limit,
+    hasEvent: event !== null,
+    invitations: stats.total,
+    // `unsent` ya viene contado por etapa; lo enviado es el resto.
+    sent: stats.total - stats.unsent,
+  });
+
+  // Mientras la cuenta no esté en marcha, la guía ES el panel. Cuatro
+  // contadores a cero no le dicen nada a quien todavía no tiene invitados, y
+  // el menú de al lado son diez pantallas que aún no puede usar.
+  if (!progress.complete) {
+    return (
+      <div className="space-y-8">
+        <header>
+          <p className="font-sans text-[11px] uppercase tracking-[0.24em] text-olive-600">
+            Bienvenido
+          </p>
+          <h1 className="mt-2 font-serif text-3xl font-light text-forest-800 sm:text-4xl">
+            {event ? event.name : "Tu panel"}
+          </h1>
+          {event && (
+            <p className="mt-2 font-sans text-sm text-ink-500">
+              {formatLongDate(event.date)} · {event.time} · {event.location.split("\n")[0]}
+            </p>
+          )}
+        </header>
+
+        <OnboardingGuide progress={progress} />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import QRCode from "qrcode";
 import { NoEventState } from "@/components/admin/NoEventState";
+import { getQuota } from "@/lib/services/events";
 import { PhotoManager } from "@/components/admin/PhotoManager";
 import { PhotoShare } from "@/components/admin/PhotoShare";
 import { listClips, listPhotos, photoStats } from "@/lib/services/photos";
@@ -18,8 +19,8 @@ export const metadata: Metadata = {
 };
 
 export default async function PhotosPage() {
-  const { event } = await requirePanelContext();
-  if (!event) return <NoEventState />;
+  const { session, event } = await requirePanelContext();
+  if (!event) return <NoEventState quotaLimit={(await getQuota(session.sub)).limit} />;
 
   const uploadUrl = `${siteUrl()}/f/${event.shareCode}`;
   const rewindUrl = `${siteUrl()}/r/${event.shareCode}`;

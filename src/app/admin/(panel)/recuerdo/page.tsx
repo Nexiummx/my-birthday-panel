@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { NoEventState } from "@/components/admin/NoEventState";
+import { getQuota } from "@/lib/services/events";
 import { RecapStudio } from "@/components/admin/RecapStudio";
 import { RewindComposer } from "@/components/admin/RewindComposer";
 import { SoundtrackPicker } from "@/components/admin/SoundtrackPicker";
@@ -24,7 +25,7 @@ export const metadata: Metadata = {
 
 export default async function RewindPage() {
   const { session, event } = await requirePanelContext();
-  if (!event) return <NoEventState />;
+  if (!event) return <NoEventState quotaLimit={(await getQuota(session.sub)).limit} />;
 
   const [curation, reel] = await Promise.all([
     getCuration(event.id, session.sub),

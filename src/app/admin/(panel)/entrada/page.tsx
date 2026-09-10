@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { NoEventState } from "@/components/admin/NoEventState";
+import { getQuota } from "@/lib/services/events";
 import { DoorBoard } from "@/components/admin/DoorBoard";
 import { listInvitations } from "@/lib/services/invitations";
 import { toAdminInvitation } from "@/lib/admin-invitation";
@@ -21,7 +22,7 @@ export const metadata: Metadata = {
  */
 export default async function DoorPage() {
   const { session, event } = await requirePanelContext();
-  if (!event) return <NoEventState />;
+  if (!event) return <NoEventState quotaLimit={(await getQuota(session.sub)).limit} />;
 
   const invitations = await listInvitations(session.sub, event.id);
 
